@@ -62,3 +62,12 @@ html, body {
 .animate-fade-in {
   animation: fade-in 1.2s ease-out forwards;
 }
+
+@keyframes orb-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.animate-orb-glow {
+  animation: orb-glow 3s ease-in-out infinite;
+}
