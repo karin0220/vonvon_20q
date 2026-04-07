@@ -4,13 +4,12 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChatMessage, ChatResponse, GameMode } from "@/lib/types";
 
-// 정답 기반으로 일관된 가짜 평균 턴수 생성 (10~16 범위)
 function getFakeAverage(answer: string): number {
   let hash = 0;
   for (let i = 0; i < answer.length; i++) {
     hash = (hash * 31 + answer.charCodeAt(i)) | 0;
   }
-  return 10 + (Math.abs(hash) % 7); // 10~16
+  return 10 + (Math.abs(hash) % 7);
 }
 
 function getTeasingMessage(userTurns: number, avgTurns: number): string {
@@ -41,6 +40,7 @@ function GameContent() {
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showedHintEnd, setShowedHintEnd] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -51,6 +51,20 @@ function GameContent() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 추천 질문이 끝나는 시점에 안내 메시지 표시
+  useEffect(() => {
+    if (mode === "user-guesses" && turnCount === 4 && !showedHintEnd && !gameOver) {
+      setShowedHintEnd(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "bongshin",
+          content: "크흠... 이제는 직접 질문하거라. 봉신이 계속 힌트를 줄 수는 없지.",
+        },
+      ]);
+    }
+  }, [turnCount, mode, showedHintEnd, gameOver]);
 
   const sendToAPI = useCallback(
     async (
@@ -96,10 +110,12 @@ function GameContent() {
           },
         ]);
 
-        if (data.isGameOver && data.guess) {
+        // 정답 캡처: guess 필드가 있으면 저장, 없으면 메시지에서 추출 시도
+        if (data.guess) {
           setFinalAnswer(data.guess);
-          setGameOver(true);
-        } else if (data.isGameOver) {
+        }
+
+        if (data.isGameOver) {
           setGameOver(true);
         }
 
@@ -171,13 +187,11 @@ function GameContent() {
     const origin = window.location.origin;
 
     if (mode === "user-guesses" && finalAnswer) {
-      // 정답 고정 공유 링크
       const encoded = btoa(encodeURIComponent(finalAnswer));
       const shareUrl = `${origin}/play?mode=user-guesses&category=${encodeURIComponent(category)}&answer=${encoded}`;
       const text = `봉신이 낸 문제를 ${turnCount}번 만에 맞췄다! 너도 도전해봐 🔮\n${shareUrl}`;
       navigator.clipboard.writeText(text);
     } else {
-      // 게임 자체 공유
       const text = `봉신과 스무고개 - 봉신이 유리구슬로 당신의 마음을 읽습니다 🔮\n${origin}`;
       navigator.clipboard.writeText(text);
     }
@@ -189,9 +203,9 @@ function GameContent() {
   const avgTurns = finalAnswer ? getFakeAverage(finalAnswer) : null;
 
   return (
-    <div className="flex-1 flex flex-col w-full h-full">
+    <div className="flex-1 flex flex-col w-full h-dvh">
       {/* 헤더 — 고정 */}
-      <header className="sticky top-0 z-20 bg-bg flex items-center justify-between px-4 py-3 border-b border-border">
+      <header className="sticky top-0 z-20 bg-bg flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <button
           onClick={() => router.push("/")}
           className="text-text-dim hover:text-mystic-light text-sm"
@@ -301,81 +315,82 @@ function GameContent() {
         <div ref={chatEndRef} />
       </div>
 
-      {/* 입력 영역 */}
-      {!gameOver ? (
-        mode === "ai-guesses" ? (
-          <div className="px-4 py-3 border-t border-border">
-            <div className="flex gap-2 justify-center">
-              {["응, 맞아", "아니", "모르겠어"].map((answer) => (
-                <button
-                  key={answer}
-                  onClick={() => handleUserResponse(answer)}
-                  disabled={loading}
-                  className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text active:bg-mystic active:text-black active:border-mystic transition-all disabled:opacity-50"
-                >
-                  {answer}
-                </button>
-              ))}
+      {/* 하단 입력 영역 — 고정 */}
+      <div className="sticky bottom-0 z-20 bg-bg shrink-0">
+        {!gameOver ? (
+          mode === "ai-guesses" ? (
+            <div className="px-4 py-3 border-t border-border">
+              <div className="flex gap-2 justify-center">
+                {["응, 맞아", "아니", "모르겠어"].map((answer) => (
+                  <button
+                    key={answer}
+                    onClick={() => handleUserResponse(answer)}
+                    disabled={loading}
+                    className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text active:bg-mystic active:text-black active:border-mystic transition-all disabled:opacity-50"
+                  >
+                    {answer}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="px-4 py-3 border-t border-border">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSubmitInput();
+                  }}
+                  placeholder="질문하거나 정답을 말해봐"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
+                  disabled={loading}
+                />
+                <button
+                  onClick={handleSubmitInput}
+                  disabled={loading || !input.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors disabled:opacity-50"
+                >
+                  전송
+                </button>
+              </div>
+            </div>
+          )
         ) : (
-          <div className="px-4 py-3 border-t border-border">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSubmitInput();
-                }}
-                placeholder="질문하거나 정답을 말해봐"
-                className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
-                disabled={loading}
-              />
+          <div className="px-4 py-5 border-t border-border text-center space-y-4">
+            {mode === "user-guesses" && avgTurns && (
+              <div className="bg-bg-card border border-border rounded-2xl px-4 py-3 space-y-1">
+                <p className="text-xs text-text-dim">
+                  다른 사람들은 평균 <span className="text-mystic font-bold">{avgTurns}번</span> 만에 맞췄다
+                </p>
+                <p className="text-sm text-mystic-light font-medium">
+                  {getTeasingMessage(turnCount, avgTurns)}
+                </p>
+              </div>
+            )}
+
+            <p className="text-sm text-mystic font-medium">
+              게임 종료! ({turnCount}턴)
+            </p>
+
+            <div className="flex gap-2 justify-center">
               <button
-                onClick={handleSubmitInput}
-                disabled={loading || !input.trim()}
-                className="px-4 py-2.5 rounded-xl bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors disabled:opacity-50"
+                onClick={() => router.push("/")}
+                className="px-5 py-2.5 rounded-full bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors"
               >
-                전송
+                다시 하기
+              </button>
+              <button
+                onClick={handleShare}
+                className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-text text-sm font-medium hover:border-mystic/50 transition-colors"
+              >
+                {copied ? "복사됨!" : mode === "user-guesses" ? "도전장 보내기" : "공유하기"}
               </button>
             </div>
           </div>
-        )
-      ) : (
-        <div className="px-4 py-5 border-t border-border text-center space-y-4">
-          {/* 네가 맞춰봐 모드: 평균 턴수 + 약올리기 */}
-          {mode === "user-guesses" && avgTurns && (
-            <div className="bg-bg-card border border-border rounded-2xl px-4 py-3 space-y-1">
-              <p className="text-xs text-text-dim">
-                다른 사람들은 평균 <span className="text-mystic font-bold">{avgTurns}번</span> 만에 맞췄다
-              </p>
-              <p className="text-sm text-mystic-light font-medium">
-                {getTeasingMessage(turnCount, avgTurns)}
-              </p>
-            </div>
-          )}
-
-          <p className="text-sm text-mystic font-medium">
-            게임 종료! ({turnCount}턴)
-          </p>
-
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={() => router.push("/")}
-              className="px-5 py-2.5 rounded-full bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors"
-            >
-              다시 하기
-            </button>
-            <button
-              onClick={handleShare}
-              className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-text text-sm font-medium hover:border-mystic/50 transition-colors"
-            >
-              {copied ? "복사됨!" : mode === "user-guesses" ? "도전장 보내기" : "공유하기"}
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
