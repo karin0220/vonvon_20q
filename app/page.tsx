@@ -36,7 +36,7 @@ export default function Home() {
 
       {/* 컨텐츠 영역 */}
       <div className="px-5 pb-8 -mt-12 relative z-10 flex flex-col items-center">
-        <div className="mb-6 w-full max-w-[360px]" style={{ aspectRatio: "4400/1237" }}>
+        <div className="mb-6 w-full max-w-[360px] animate-fade-in" style={{ aspectRatio: "4400/1237" }}>
           <Image
             src="/logo.png"
             alt="봉신과 스무고개"

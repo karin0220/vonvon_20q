@@ -53,3 +53,12 @@ html, body {
 .animate-gold-glow {
   animation: gold-glow 2.5s ease-in-out infinite;
 }
+
+@keyframes fade-in {
+  0% { opacity: 0; filter: brightness(0); }
+  100% { opacity: 1; filter: brightness(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 1.2s ease-out forwards;
+}
