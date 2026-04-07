@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ChatMessage, ChatResponse, GameMode } from "@/lib/types";
+import { BongshinResponseType, ChatMessage, ChatResponse, GameMode } from "@/lib/types";
 
 function getFakeAverage(answer: string): number {
   let hash = 0;
@@ -24,6 +24,11 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
 
 const AI_REVEAL_PROMPT =
   "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
+
+function resolveResponseType(data: ChatResponse): BongshinResponseType {
+  if (data.responseType) return data.responseType;
+  return data.isGuess ? "challenge" : "question";
+}
 
 function GameContent() {
   const searchParams = useSearchParams();
@@ -131,6 +136,7 @@ function GameContent() {
         if (!res.ok) throw new Error("API error");
 
         const data: ChatResponse = await res.json();
+        const responseType = resolveResponseType(data);
 
         const updatedHistory = [
           ...newHistory,
@@ -145,7 +151,7 @@ function GameContent() {
           mode === "ai-guesses" &&
           !isInit &&
           nextTurnCount >= 20 &&
-          !data.isGuess;
+          responseType !== "challenge";
 
         setMessages((prev) => {
           const updated = [
@@ -154,7 +160,8 @@ function GameContent() {
               role: "bongshin" as const,
               content: shouldForceAiReveal ? AI_REVEAL_PROMPT : data.message,
               suggestedQuestions: data.suggestedQuestions || undefined,
-              isGuess: data.isGuess,
+              isGuess: responseType === "challenge",
+              responseType: shouldForceAiReveal ? "result" : responseType,
             },
           ];
           // 추천 질문 4번 사용 후 API 응답 뒤에 힌트 메시지 삽입
@@ -164,6 +171,7 @@ function GameContent() {
             updated.push({
               role: "bongshin",
               content: "크흠... 이제는 직접 질문하거라. 봉신이 계속 힌트를 줄 수는 없지.",
+              responseType: "question",
             });
           }
           return updated;
@@ -175,7 +183,7 @@ function GameContent() {
         }
 
         if (mode === "ai-guesses") {
-          setAwaitingGuessConfirmation(shouldForceAiReveal ? false : data.isGuess);
+          setAwaitingGuessConfirmation(shouldForceAiReveal ? false : responseType === "challenge");
         }
 
         if (mode === "user-guesses" && data.isGameOver) {
@@ -195,6 +203,7 @@ function GameContent() {
           {
             role: "bongshin",
             content: "유리구슬에 금이 갔다... 다시 시도해봐",
+            responseType: "result",
           },
         ]);
         return currentHistory;
@@ -248,6 +257,7 @@ function GameContent() {
           content:
             "크흠... 봉신의 유리구슬은 거짓말을 하지 않지. 역시 봉신이다!",
           isCorrect: true,
+          responseType: "result",
         },
       ]);
     } else if (turnCount >= 20) {
@@ -258,6 +268,7 @@ function GameContent() {
         {
           role: "bongshin",
           content: AI_REVEAL_PROMPT,
+          responseType: "result",
         },
       ]);
     } else {
@@ -275,6 +286,7 @@ function GameContent() {
         {
           role: "bongshin",
           content: `시간이 다 됐다... 봉신이 떠올린 건 "${answer}"이었지. 다음엔 더 날카롭게 파고들어 봐.`,
+          responseType: "result",
         },
       ]);
     }
@@ -297,6 +309,7 @@ function GameContent() {
       {
         role: "bongshin",
         content: `${answer}이라... 기억해 두마. 다음에는 반드시 맞추겠다.`,
+        responseType: "result",
       },
     ]);
   }
@@ -373,9 +386,26 @@ function GameContent() {
                   🔮
                 </div>
                 <div className="max-w-[80%]">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                        msg.responseType === "challenge"
+                          ? "bg-mystic text-black"
+                          : msg.responseType === "result"
+                          ? "bg-mystic-dark text-text-bright"
+                          : "bg-bg-card border border-border text-text-dim"
+                      }`}
+                    >
+                      {msg.responseType === "challenge"
+                        ? "도전"
+                        : msg.responseType === "result"
+                        ? "결과"
+                        : "질문"}
+                    </span>
+                  </div>
                   <div
                     className={`px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed ${
-                      msg.isGuess
+                      msg.responseType === "challenge"
                         ? "bg-mystic text-black font-medium"
                         : msg.isCorrect
                         ? "bg-mystic-dark text-text-bright"
@@ -385,7 +415,7 @@ function GameContent() {
                     {msg.content}
                   </div>
 
-                  {msg.isGuess &&
+                  {msg.responseType === "challenge" &&
                     !msg.isCorrect &&
                     !gameOver &&
                     mode === "ai-guesses" &&
@@ -396,13 +426,13 @@ function GameContent() {
                           onClick={() => handleGuessResponse(true)}
                           className="px-4 py-1.5 rounded-full bg-mystic text-black text-xs font-medium hover:bg-mystic-light transition-colors"
                         >
-                          맞아!
+                          정답이야
                         </button>
                         <button
                           onClick={() => handleGuessResponse(false)}
                           className="px-4 py-1.5 rounded-full bg-bg-card border border-border text-text-dim text-xs font-medium hover:border-mystic/50 transition-colors"
                         >
-                          아니야
+                          틀렸어
                         </button>
                       </div>
                     )}

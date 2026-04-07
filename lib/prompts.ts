@@ -79,6 +79,7 @@ export function getSystemPrompt(mode: GameMode, category: string, fixedAnswer?: 
 응답은 반드시 아래 JSON 형식으로:
 {
   "message": "봉신의 대사",
+  "responseType": "question",
   "isGuess": false,
   "guess": null,
   "suggestedQuestions": null,
@@ -86,7 +87,16 @@ export function getSystemPrompt(mode: GameMode, category: string, fixedAnswer?: 
   "isGameOver": false
 }
 
-추측할 때는 isGuess: true, guess: "정답" 으로 보내.
+반드시 응답 종류를 명확히 구분해라:
+- 일반 탐색 질문은 responseType: "question"
+- 정답을 찍는 도전은 responseType: "challenge"
+- 게임 종료 멘트나 결과 정리는 responseType: "result"
+
+도전일 때는 반드시 문장 자체도 질문처럼 흐리지 말고 정답을 단정형으로 말해라.
+예: "봉신의 도전이다. 네가 떠올린 것은 오징어 게임이다."
+"그 작품이 오징어 게임 아니냐?" 같은 질문형 도전 문장은 금지.
+
+추측할 때는 responseType: "challenge", isGuess: true, guess: "정답" 으로 보내.
 20턴이 지나면 isGameOver: true로 보내고 마지막 추측을 해.`;
   }
 
@@ -115,6 +125,7 @@ ${answerInstruction}
 응답은 반드시 아래 JSON 형식으로:
 {
   "message": "봉신의 대사",
+  "responseType": "question",
   "isGuess": false,
   "guess": null,
   "suggestedQuestions": ["질문1", "질문2", "질문3"],
@@ -122,8 +133,12 @@ ${answerInstruction}
   "isGameOver": false
 }
 
-유저가 정답을 맞추면 isGuess: true, guess: "정답", isGameOver: true로.
-20턴이 지나면 isGameOver: true, guess: "정답"으로 보내되, message에서는 정답을 절대 공개하지 마. "봉신의 유리구슬이 흐려졌다..." 같은 식으로 아쉬워하기만 해. guess 필드에만 정답을 넣어.
+반드시 응답 종류를 명확히 구분해라:
+- 일반 질문 응답과 힌트는 responseType: "question"
+- 유저가 정답을 맞췄을 때의 종료 멘트는 responseType: "result"
+
+유저가 정답을 맞추면 responseType: "result", isGuess: true, guess: "정답", isGameOver: true로.
+20턴이 지나면 responseType: "result", isGameOver: true, guess: "정답"으로 보내되, message에서는 정답을 절대 공개하지 마. "봉신의 유리구슬이 흐려졌다..." 같은 식으로 아쉬워하기만 해. guess 필드에만 정답을 넣어.
 
 절대 규칙: message 안에서 정답을 직접 말하거나 힌트로 정답 자체를 노출하면 안 된다. 답답해하거나 도발하는 건 OK지만, 정답 단어를 message에 넣는 건 금지. (guess 필드는 별개)
 

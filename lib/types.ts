@@ -1,4 +1,5 @@
 export type GameMode = "ai-guesses" | "user-guesses";
+export type BongshinResponseType = "question" | "challenge" | "result";
 
 export interface ChatMessage {
   role: "bongshin" | "user";
@@ -6,6 +7,7 @@ export interface ChatMessage {
   suggestedQuestions?: string[];
   isGuess?: boolean;
   isCorrect?: boolean;
+  responseType?: BongshinResponseType;
 }
 
 export interface ChatRequest {
@@ -22,6 +24,7 @@ export interface ChatResponse {
   suggestedQuestions: string[] | null;
   turnCount: number;
   isGameOver: boolean;
+  responseType?: BongshinResponseType;
 }
 
 export const CATEGORIES = [
