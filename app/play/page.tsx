@@ -42,17 +42,22 @@ function GameContent() {
   const [copied, setCopied] = useState(false);
   const [showedHintEnd, setShowedHintEnd] = useState(false);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollToBottom = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    // 내용이 컨테이너보다 넘칠 때만 스크롤 (적을 땐 아무것도 안 함)
+    if (el.scrollHeight > el.clientHeight) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   // 모바일 키보드 올라올 때 채팅 스크롤 처리
   useEffect(() => {
@@ -60,13 +65,12 @@ function GameContent() {
     if (!viewport) return;
 
     const handleResize = () => {
-      // 키보드가 올라오면 viewport 높이가 줄어듦 → 스크롤
       setTimeout(scrollToBottom, 100);
     };
 
     viewport.addEventListener("resize", handleResize);
     return () => viewport.removeEventListener("resize", handleResize);
-  }, []);
+  }, [scrollToBottom]);
 
   const showHintAfterResponse = useRef(false);
 
@@ -243,7 +247,7 @@ function GameContent() {
       </header>
 
       {/* 채팅 영역 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.map((msg, i) => (
           <div key={i}>
             {msg.role === "bongshin" ? (
@@ -335,7 +339,6 @@ function GameContent() {
           </div>
         )}
 
-        <div ref={chatEndRef} />
       </div>
 
       {/* 하단 입력 영역 — 고정 */}
@@ -367,7 +370,7 @@ function GameContent() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSubmitInput();
                   }}
-                  onFocus={() => setTimeout(scrollToBottom, 300)}
+                  onFocus={() => setTimeout(scrollToBottom, 150)}
                   placeholder="질문하거나 정답을 말해봐"
                   className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
                   disabled={loading}
