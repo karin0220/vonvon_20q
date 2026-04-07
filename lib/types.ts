@@ -25,6 +25,11 @@ export interface ChatResponse {
   turnCount: number;
   isGameOver: boolean;
   responseType?: BongshinResponseType;
+  stage?: "broad" | "narrow" | "challenge" | "result";
+  questionAxis?: string | null;
+  candidateBucket?: "1000+" | "100-999" | "10-99" | "2-9" | "1" | null;
+  shouldGuessNow?: boolean;
+  guessReasonShort?: string | null;
 }
 
 export const CATEGORIES = [
