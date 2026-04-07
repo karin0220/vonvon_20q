@@ -41,9 +41,9 @@ export default function Home() {
         <Image
           src="/logo.png"
           alt="봉신과 스무고개"
-          width={240}
-          height={80}
-          className="mb-6"
+          width={360}
+          height={60}
+          className="mb-6 w-full max-w-[360px] h-auto"
         />
 
         {/* 모드 토글 */}
