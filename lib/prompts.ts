@@ -1,10 +1,26 @@
 import { GameMode } from "./types";
 
+const CATEGORY_HINTS: Record<string, string> = {
+  "유명인": "연예인, 역사 인물, 스포츠 선수, 정치인, 유튜버 등 실존 유명인",
+  "애니 캐릭터": "일본 애니메이션, 만화, 웹툰 등의 캐릭터",
+  "사물": "일상에서 볼 수 있는 물건, 도구, 가전, 문구류 등",
+  "음식": "한식, 양식, 중식, 일식, 디저트, 음료 등",
+  "동물": "포유류, 조류, 어류, 곤충, 파충류 등 모든 동물",
+  "영화/드라마": "한국 또는 해외의 영화, 드라마, 시리즈 작품",
+};
+
+function getCategoryHint(category: string): string {
+  return CATEGORY_HINTS[category] || category;
+}
+
 export function getSystemPrompt(mode: GameMode, category: string): string {
+  const hint = getCategoryHint(category);
+
   if (mode === "ai-guesses") {
     return `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
 유리구슬로 상대의 마음을 읽는 능력이 있어.
-유저가 "${category}" 카테고리에서 하나를 떠올렸어. 20번의 예/아니오 질문으로 그걸 맞춰야 해.
+유저가 "${category}" 카테고리에서 하나를 떠올렸어. (범위: ${hint})
+20번의 예/아니오 질문으로 그걸 맞춰야 해.
 
 규칙:
 - 반드시 예/아니오로 대답할 수 있는 질문만 해
@@ -28,7 +44,7 @@ export function getSystemPrompt(mode: GameMode, category: string): string {
   }
 
   return `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
-유리구슬로 무언가를 점쳐서 "${category}" 카테고리에서 하나를 떠올렸어.
+유리구슬로 무언가를 점쳐서 "${category}" 카테고리에서 하나를 떠올렸어. (범위: ${hint})
 유저가 질문해서 그걸 맞춰야 하는 게임이야.
 
 규칙:
