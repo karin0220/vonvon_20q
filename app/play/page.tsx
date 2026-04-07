@@ -246,8 +246,9 @@ function GameContent() {
         <div className="text-lg">🔮</div>
       </header>
 
-      {/* 채팅 영역 */}
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* 채팅 영역 — 메시지가 하단부터 쌓임 (카톡 방식) */}
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto flex flex-col">
+        <div className="mt-auto px-4 py-4 space-y-4">
         {messages.map((msg, i) => (
           <div key={i}>
             {msg.role === "bongshin" ? (
@@ -338,7 +339,7 @@ function GameContent() {
             </div>
           </div>
         )}
-
+        </div>
       </div>
 
       {/* 하단 입력 영역 — 고정 */}

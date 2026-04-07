@@ -118,11 +118,11 @@ export default function Home() {
           ))}
         </div>
 
-        {starting && (
+        {/* {starting && (
           <div className="mt-6 text-mystic animate-pulse-slow text-sm">
             봉신이 유리구슬을 닦고 있다...
           </div>
-        )}
+        )} */}
       </div>
     </main>
   );
