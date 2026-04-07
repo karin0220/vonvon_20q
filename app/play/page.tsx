@@ -248,7 +248,9 @@ function GameContent() {
                     )}
 
                   {msg.suggestedQuestions &&
+                    mode === "user-guesses" &&
                     !gameOver &&
+                    turnCount <= 3 &&
                     i === messages.length - 1 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {msg.suggestedQuestions.map((q, j) => (
