@@ -230,19 +230,19 @@ function GameContent() {
   return (
     <div className="flex-1 flex flex-col w-full h-dvh relative">
       {/* 배경 봉신 이미지 */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <Image
-          src="/bongshin.png"
+          src="/chat-bg.jpg"
           alt=""
           fill
           className="object-cover object-top"
-          style={{ opacity: 0.08 }}
+          style={{ opacity: 0.2 }}
+          priority
         />
-        <div className="absolute inset-0 bg-black/50" />
       </div>
 
       {/* 헤더 — 고정 */}
-      <header className="sticky top-0 z-20 bg-bg flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <button
           onClick={() => router.push("/")}
           className="text-text-dim hover:text-mystic-light text-sm"
@@ -353,7 +353,7 @@ function GameContent() {
       </div>
 
       {/* 하단 입력 영역 — 고정 */}
-      <div className="sticky bottom-0 z-20 bg-bg shrink-0">
+      <div className="sticky bottom-0 z-20 bg-bg/90 backdrop-blur-sm shrink-0">
         {!gameOver ? (
           mode === "ai-guesses" ? (
             <div className="px-4 py-3 border-t border-border">
