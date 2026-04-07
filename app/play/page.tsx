@@ -47,15 +47,26 @@ function GameContent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = chatContainerRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    });
   }, []);
 
+  // DOM 변화 감지로 자동 스크롤 — messages useEffect보다 확실함
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    const observer = new MutationObserver(() => {
+      scrollToBottom();
+    });
+
+    observer.observe(el, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [scrollToBottom]);
 
   // 모바일 키보드 올라올 때 채팅 스크롤 처리
   useEffect(() => {
@@ -63,7 +74,7 @@ function GameContent() {
     if (!viewport) return;
 
     const handleResize = () => {
-      setTimeout(scrollToBottom, 100);
+      scrollToBottom();
     };
 
     viewport.addEventListener("resize", handleResize);
@@ -380,7 +391,7 @@ function GameContent() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSubmitInput();
                   }}
-                  onFocus={() => setTimeout(scrollToBottom, 150)}
+                  onFocus={() => scrollToBottom()}
                   placeholder="질문하거나 정답을 말해봐"
                   className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
                   disabled={loading}
