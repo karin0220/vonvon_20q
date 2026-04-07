@@ -66,7 +66,7 @@ export default function Home() {
                 : "text-text-dim hover:text-text"
             }`}
           >
-            네가 맞춰봐
+            봉신이 문제낼게
           </button>
           <button
             onClick={() => setMode("ai-guesses")}
@@ -81,11 +81,6 @@ export default function Home() {
         </div>
 
         {/* 카테고리 선택 */}
-        <p className="text-sm text-mystic-light mb-3">
-          {mode === "ai-guesses"
-            ? "무엇을 떠올릴 건가?"
-            : "봉신이 무엇을 떠올릴까?"}
-        </p>
         <div className="grid grid-cols-3 gap-3 w-full">
           {/* 오늘의 주제 / 전체 */}
           <button
