@@ -60,6 +60,7 @@ function GameContent() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
+  const turnCountRef = useRef(0);
 
   // 인트로 → 페이드아웃 → 게임 시작
   useEffect(() => {
@@ -119,9 +120,7 @@ function GameContent() {
           ...currentHistory,
           { role: "user" as const, content: userMessage },
         ];
-        const nextTurnCount = isInit
-          ? 0
-          : currentHistory.filter((message) => message.role === "user").length;
+        const nextTurnCount = isInit ? 0 : turnCountRef.current + 1;
 
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -145,6 +144,7 @@ function GameContent() {
         ];
         setHistory(updatedHistory);
         if (!isInit) {
+          turnCountRef.current = nextTurnCount;
           setTurnCount(nextTurnCount);
         }
 
@@ -238,7 +238,7 @@ function GameContent() {
   }, [mode, category, sendToAPI]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
-    if (bootstrapping || loading || gameOver || awaitingGuessConfirmation || turnCount >= 20) return;
+    if (bootstrapping || loading || gameOver || awaitingGuessConfirmation || turnCountRef.current >= 20) return;
     if (fromSuggested) {
       const newCount = suggestedUsedCount + 1;
       setSuggestedUsedCount(newCount);
@@ -271,7 +271,7 @@ function GameContent() {
           responseType: "result",
         },
       ]);
-    } else if (turnCount >= 20) {
+    } else if (turnCountRef.current >= 20) {
       setGameOver(true);
       setShowReveal(true);
       setMessages((prev) => [
@@ -283,7 +283,11 @@ function GameContent() {
         },
       ]);
     } else {
+      // 도전 확인 응답은 턴 소비 없이 전송 — sendToAPI 후 턴 복원
+      const savedTurn = turnCountRef.current;
       await sendToAPI(response, history);
+      turnCountRef.current = savedTurn;
+      setTurnCount(savedTurn);
     }
   }
 
@@ -400,23 +404,25 @@ function GameContent() {
                   🔮
                 </div>
                 <div className="max-w-[80%]">
-                  <div className="mb-1 flex items-center gap-2">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
-                        msg.responseType === "challenge"
-                          ? "bg-mystic text-black"
+                  {mode === "ai-guesses" && msg.responseType && (
+                    <div className="mb-1 flex items-center gap-2">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                          msg.responseType === "challenge"
+                            ? "bg-mystic text-black"
+                            : msg.responseType === "result"
+                            ? "bg-mystic-dark text-text-bright"
+                            : "bg-bg-card border border-border text-text-dim"
+                        }`}
+                      >
+                        {msg.responseType === "challenge"
+                          ? "도전"
                           : msg.responseType === "result"
-                          ? "bg-mystic-dark text-text-bright"
-                          : "bg-bg-card border border-border text-text-dim"
-                      }`}
-                    >
-                      {msg.responseType === "challenge"
-                        ? "도전"
-                        : msg.responseType === "result"
-                        ? "결과"
-                        : "질문"}
-                    </span>
-                  </div>
+                          ? "결과"
+                          : "질문"}
+                      </span>
+                    </div>
+                  )}
                   <div
                     className={`px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed ${
                       msg.responseType === "challenge"
