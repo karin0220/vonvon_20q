@@ -239,9 +239,9 @@ function GameContent() {
   const avgTurns = finalAnswer ? getFakeAverage(finalAnswer) : null;
 
   return (
-    <div className="flex-1 flex flex-col w-full h-dvh relative">
+    <div className="flex flex-col w-full h-dvh relative overflow-hidden">
       {/* 배경 봉신 이미지 */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden animate-bg-fade-in">
+      <div className="absolute inset-0 z-0 pointer-events-none animate-bg-fade-in">
         <Image
           src="/chat-bg.jpg"
           alt=""
@@ -252,7 +252,7 @@ function GameContent() {
       </div>
 
       {/* 헤더 — 고정 */}
-      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <header className="z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <button
           onClick={() => router.push("/")}
           className="text-text-dim hover:text-mystic-light text-sm"
@@ -267,7 +267,7 @@ function GameContent() {
       </header>
 
       {/* 채팅 영역 — 메시지가 하단부터 쌓임 (카톡 방식) */}
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto flex flex-col relative z-10">
+      <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col relative z-10">
         <div className="mt-auto px-4 py-4 space-y-4 relative z-10">
         {messages.map((msg, i) => (
           <div key={i}>
@@ -363,7 +363,7 @@ function GameContent() {
       </div>
 
       {/* 하단 입력 영역 — 고정 */}
-      <div className="sticky bottom-0 z-20 bg-bg/90 backdrop-blur-sm shrink-0">
+      <div className="z-20 bg-bg/90 backdrop-blur-sm shrink-0">
         {!gameOver ? (
           mode === "ai-guesses" ? (
             <div className="px-4 py-3 border-t border-border">
