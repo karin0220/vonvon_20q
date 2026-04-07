@@ -44,6 +44,8 @@ function GameContent() {
   const [input, setInput] = useState("");
   const [copied, setCopied] = useState(false);
   const [showedHintEnd, setShowedHintEnd] = useState(false);
+  const [revealInput, setRevealInput] = useState("");
+  const [showReveal, setShowReveal] = useState(false);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -221,11 +223,40 @@ function GameContent() {
     }
   }
 
+  // ai-guesses 모드: 20턴 도달 시 강제 종료
+  useEffect(() => {
+    if (mode === "ai-guesses" && turnCount >= 20 && !gameOver) {
+      setGameOver(true);
+      setShowReveal(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "bongshin",
+          content: "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?",
+        },
+      ]);
+    }
+  }, [turnCount, mode, gameOver]);
+
   function handleSubmitInput() {
     if (!input.trim() || loading || gameOver) return;
     const msg = input.trim();
     setInput("");
     handleUserResponse(msg);
+  }
+
+  function handleRevealSubmit() {
+    if (!revealInput.trim()) return;
+    const answer = revealInput.trim();
+    setShowReveal(false);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: answer },
+      {
+        role: "bongshin",
+        content: `${answer}이라... 기억해 두마. 다음에는 반드시 맞추겠다.`,
+      },
+    ]);
   }
 
   function handleShare() {
@@ -429,6 +460,28 @@ function GameContent() {
               </div>
             </div>
           )
+        ) : showReveal ? (
+          <div className="px-4 py-3 border-t border-border">
+            <p className="text-xs text-text-dim text-center mb-2">정답을 알려주세요</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={revealInput}
+                onChange={(e) => setRevealInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleRevealSubmit(); }}
+                placeholder="정답을 입력해줘"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
+                autoFocus
+              />
+              <button
+                onClick={handleRevealSubmit}
+                disabled={!revealInput.trim()}
+                className="px-4 py-2.5 rounded-xl bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors disabled:opacity-50"
+              >
+                전송
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="px-4 py-5 border-t border-border text-center space-y-4">
             {mode === "user-guesses" && avgTurns && (
