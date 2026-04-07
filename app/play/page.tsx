@@ -49,10 +49,7 @@ function GameContent() {
   const scrollToBottom = useCallback(() => {
     const el = chatContainerRef.current;
     if (!el) return;
-    // 내용이 컨테이너보다 넘칠 때만 스크롤 (적을 땐 아무것도 안 함)
-    if (el.scrollHeight > el.clientHeight) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    }
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
 
   useEffect(() => {
