@@ -4,6 +4,7 @@ import { ChatRequest, ChatResponse } from "@/lib/types";
 const API_KEY = process.env.GEMINI_API_KEY || "";
 const MODEL = "gemini-3.1-flash-lite-preview";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+const GEMINI_TIMEOUT_MS = 15000;
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -83,6 +84,10 @@ const RESPONSE_SCHEMA = {
   ],
   additionalProperties: false,
 } as const;
+
+function getThinkingLevel(mode: ChatRequest["mode"]) {
+  return mode === "ai-guesses" ? "medium" : "low";
+}
 
 function getActualTurnCount(messages: ChatRequest["messages"]) {
   return Math.max(
@@ -200,9 +205,13 @@ export async function POST(request: Request) {
       parts: [{ text: m.content }],
     }));
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents,
@@ -210,10 +219,12 @@ export async function POST(request: Request) {
           responseMimeType: "application/json",
           responseJsonSchema: RESPONSE_SCHEMA,
           thinkingConfig: {
-            thinkingLevel: "high",
+            thinkingLevel: getThinkingLevel(mode),
           },
         },
       }),
+    }).finally(() => {
+      clearTimeout(timeoutId);
     });
 
     if (!res.ok) {

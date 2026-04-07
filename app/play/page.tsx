@@ -46,6 +46,7 @@ function GameContent() {
     { role: "user" | "model"; content: string }[]
   >([]);
   const [loading, setLoading] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(true);
   const [turnCount, setTurnCount] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
@@ -215,19 +216,29 @@ function GameContent() {
   );
 
   useEffect(() => {
-    if (initialized.current || showIntro) return;
+    if (initialized.current) return;
     initialized.current = true;
 
+    let active = true;
     const initMessage =
       mode === "ai-guesses"
         ? `게임을 시작한다. 유저가 "${category}" 카테고리에서 하나를 떠올렸다. 첫 질문을 해라.`
         : `게임을 시작한다. "${category}" 카테고리에서 하나를 골라라. 정답은 밝히지 말고 게임 시작 멘트를 해라.`;
 
-    sendToAPI(initMessage, [], true);
-  }, [mode, category, sendToAPI, showIntro]);
+    void (async () => {
+      await sendToAPI(initMessage, [], true);
+      if (active) {
+        setBootstrapping(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [mode, category, sendToAPI]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
-    if (loading || gameOver || awaitingGuessConfirmation || turnCount >= 20) return;
+    if (bootstrapping || loading || gameOver || awaitingGuessConfirmation || turnCount >= 20) return;
     if (fromSuggested) {
       const newCount = suggestedUsedCount + 1;
       setSuggestedUsedCount(newCount);
@@ -240,7 +251,7 @@ function GameContent() {
   }
 
   async function handleGuessResponse(correct: boolean) {
-    if (loading || gameOver || !awaitingGuessConfirmation) return;
+    if (bootstrapping || loading || gameOver || !awaitingGuessConfirmation) return;
 
     setAwaitingGuessConfirmation(false);
     const response = correct
@@ -293,7 +304,7 @@ function GameContent() {
   }, [turnCount, mode, gameOver, finalAnswer]);
 
   function handleSubmitInput() {
-    if (!input.trim() || loading || gameOver) return;
+    if (!input.trim() || bootstrapping || loading || gameOver) return;
     const msg = input.trim();
     setInput("");
     handleUserResponse(msg);
@@ -332,6 +343,7 @@ function GameContent() {
   }
 
   const avgTurns = finalAnswer ? getFakeAverage(finalAnswer) : null;
+  const hasChatActivity = messages.length > 0 || loading;
 
   return (
     <div className="flex flex-col w-full h-dvh relative overflow-hidden">
@@ -377,7 +389,9 @@ function GameContent() {
 
       {/* 채팅 영역 — 메시지가 하단부터 쌓임 (카톡 방식) */}
       <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col relative z-10">
-        <div className="mt-auto px-4 py-4 space-y-4 relative z-10">
+        <div className={`px-4 py-4 relative z-10 ${hasChatActivity ? "mt-auto space-y-4" : "flex min-h-full items-center justify-center"}`}>
+        {hasChatActivity ? (
+          <>
         {messages.map((msg, i) => (
           <div key={i}>
             {msg.role === "bongshin" ? (
@@ -447,7 +461,7 @@ function GameContent() {
                           <button
                             key={j}
                             onClick={() => handleUserResponse(q, true)}
-                            disabled={loading}
+                            disabled={loading || bootstrapping}
                             className="px-3 py-1.5 rounded-full bg-bg-card border border-border text-text-dim text-xs active:border-mystic/50 active:text-mystic-light transition-colors disabled:opacity-50"
                           >
                             {q}
@@ -487,12 +501,24 @@ function GameContent() {
             </div>
           </div>
         )}
+          </>
+        ) : (
+          <div className="rounded-2xl border border-border bg-bg/85 px-4 py-3 text-center text-sm text-text-dim backdrop-blur-sm">
+            봉신이 첫 질문을 고르는 중...
+          </div>
+        )}
         </div>
       </div>
 
       {/* 하단 입력 영역 — 고정 */}
       <div className="z-20 bg-bg/90 backdrop-blur-sm shrink-0">
-        {!gameOver ? (
+        {bootstrapping ? (
+          <div className="px-4 py-3 border-t border-border">
+            <p className="text-center text-sm text-text-dim">
+              봉신이 첫 질문을 고르는 중...
+            </p>
+          </div>
+        ) : !gameOver ? (
           mode === "ai-guesses" ? (
             <div className="px-4 py-3 border-t border-border">
               {awaitingGuessConfirmation ? (
@@ -505,7 +531,7 @@ function GameContent() {
                     <button
                       key={answer}
                       onClick={() => handleUserResponse(answer)}
-                      disabled={loading}
+                      disabled={loading || bootstrapping}
                       className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text active:bg-mystic active:text-black active:border-mystic transition-all disabled:opacity-50"
                     >
                       {answer}
