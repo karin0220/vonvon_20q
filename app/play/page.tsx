@@ -31,6 +31,8 @@ function GameContent() {
     ? decodeURIComponent(atob(searchParams.get("answer")!))
     : undefined;
 
+  const [showIntro, setShowIntro] = useState(true);
+  const [introFading, setIntroFading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<
     { role: "user" | "model"; content: string }[]
@@ -46,6 +48,13 @@ function GameContent() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
+
+  // 인트로 → 페이드아웃 → 게임 시작
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setIntroFading(true), 1800);
+    const hideTimer = setTimeout(() => setShowIntro(false), 2600);
+    return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
+  }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = chatContainerRef.current;
@@ -166,7 +175,7 @@ function GameContent() {
   );
 
   useEffect(() => {
-    if (initialized.current) return;
+    if (initialized.current || showIntro) return;
     initialized.current = true;
 
     const initMessage =
@@ -175,7 +184,7 @@ function GameContent() {
         : `게임을 시작한다. "${category}" 카테고리에서 하나를 골라라. 정답은 밝히지 말고 게임 시작 멘트를 해라.`;
 
     sendToAPI(initMessage, []);
-  }, [mode, category, sendToAPI]);
+  }, [mode, category, sendToAPI, showIntro]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
     if (loading || gameOver) return;
@@ -250,6 +259,20 @@ function GameContent() {
           priority
         />
       </div>
+
+      {/* 인트로 오버레이 */}
+      {showIntro && (
+        <div className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-black transition-opacity duration-700 ${introFading ? "opacity-0" : "opacity-100"}`}>
+          <p className="text-mystic text-lg font-medium animate-intro-text">
+            {mode === "user-guesses"
+              ? "스무 번 질문 내에 정답을 맞춰라"
+              : "봉신이 너의 마음을 읽겠다"}
+          </p>
+          <p className="text-text-dim text-sm mt-3 animate-intro-sub">
+            {category}
+          </p>
+        </div>
+      )}
 
       {/* 헤더 — 고정 */}
       <header className="z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between px-4 py-3 border-b border-border shrink-0">

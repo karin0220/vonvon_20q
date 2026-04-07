@@ -119,3 +119,24 @@ html, body {
   opacity: 0;
   animation: bg-fade-in 2s ease-out 0.5s forwards;
 }
+
+@keyframes intro-text {
+  0% { opacity: 0; transform: translateY(10px); }
+  30% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-intro-text {
+  opacity: 0;
+  animation: intro-text 1.5s ease-out 0.3s forwards;
+}
+
+@keyframes intro-sub {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.animate-intro-sub {
+  opacity: 0;
+  animation: intro-sub 0.8s ease-out 0.8s forwards;
+}
