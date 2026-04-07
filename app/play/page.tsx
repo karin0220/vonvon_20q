@@ -263,12 +263,12 @@ function GameContent() {
       {/* 인트로 오버레이 */}
       {showIntro && (
         <div className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-black transition-opacity duration-700 ${introFading ? "opacity-0" : "opacity-100"}`}>
-          <p className="text-mystic text-lg font-medium animate-intro-text">
+          <p className="text-mystic text-2xl font-bold animate-intro-text tracking-wide">
             {mode === "user-guesses"
               ? "스무 번 질문 내에 정답을 맞춰라"
               : "봉신이 너의 마음을 읽겠다"}
           </p>
-          <p className="text-text-dim text-sm mt-3 animate-intro-sub">
+          <p className="text-text-dim text-base mt-4 animate-intro-sub">
             {category}
           </p>
         </div>
