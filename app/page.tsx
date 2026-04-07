@@ -35,11 +35,12 @@ export default function Home() {
         <div
           className="absolute animate-orb-glow rounded-full pointer-events-none"
           style={{
-            width: "18%",
-            height: "18%",
-            left: "41%",
-            top: "58%",
-            background: "radial-gradient(circle, rgba(168,216,234,0.35) 0%, rgba(168,216,234,0.1) 40%, transparent 70%)",
+            width: "25%",
+            height: "25%",
+            left: "50%",
+            top: "62%",
+            transform: "translate(-50%, -50%)",
+            background: "radial-gradient(circle, rgba(180,220,240,0.6) 0%, rgba(168,216,234,0.3) 30%, rgba(168,216,234,0.1) 50%, transparent 70%)",
           }}
         />
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
