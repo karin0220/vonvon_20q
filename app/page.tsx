@@ -33,10 +33,10 @@ export default function Home() {
         <div
           className="absolute animate-orb-glow rounded-full pointer-events-none"
           style={{
-            width: "25%",
-            height: "25%",
-            left: "50%",
-            top: "62%",
+            width: "30%",
+            height: "30%",
+            left: "37%",
+            top: "50%",
             transform: "translate(-50%, -50%)",
             background: "radial-gradient(circle, rgba(180,220,240,0.6) 0%, rgba(168,216,234,0.3) 30%, rgba(168,216,234,0.1) 50%, transparent 70%)",
           }}
