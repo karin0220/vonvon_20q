@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { GameMode, CATEGORIES } from "@/lib/types";
-import { Mic, Sparkles, Brain, UtensilsCrossed, PawPrint, Clapperboard } from "lucide-react";
+import { Sparkles, Cat, Brain, UtensilsCrossed, PawPrint, Clapperboard } from "lucide-react";
 
-const ICONS = { Mic, Sparkles, Brain, UtensilsCrossed, PawPrint, Clapperboard } as const;
+const ICONS = { Sparkles, Cat, Brain, UtensilsCrossed, PawPrint, Clapperboard } as const;
 
 export default function Home() {
   const router = useRouter();
