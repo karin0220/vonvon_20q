@@ -68,19 +68,7 @@ function GameContent() {
     return () => viewport.removeEventListener("resize", handleResize);
   }, []);
 
-  // 추천 질문을 4번 이상 사용했을 때 안내 메시지 표시
-  useEffect(() => {
-    if (mode === "user-guesses" && suggestedUsedCount >= 4 && !showedHintEnd && !gameOver) {
-      setShowedHintEnd(true);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "bongshin",
-          content: "크흠... 이제는 직접 질문하거라. 봉신이 계속 힌트를 줄 수는 없지.",
-        },
-      ]);
-    }
-  }, [suggestedUsedCount, mode, showedHintEnd, gameOver]);
+  const showHintAfterResponse = useRef(false);
 
   const sendToAPI = useCallback(
     async (
@@ -116,15 +104,27 @@ function GameContent() {
         setHistory(updatedHistory);
         setTurnCount(data.turnCount);
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "bongshin",
-            content: data.message,
-            suggestedQuestions: data.suggestedQuestions || undefined,
-            isGuess: data.isGuess,
-          },
-        ]);
+        setMessages((prev) => {
+          const updated = [
+            ...prev,
+            {
+              role: "bongshin" as const,
+              content: data.message,
+              suggestedQuestions: data.suggestedQuestions || undefined,
+              isGuess: data.isGuess,
+            },
+          ];
+          // 추천 질문 4번 사용 후 API 응답 뒤에 힌트 메시지 삽입
+          if (showHintAfterResponse.current) {
+            showHintAfterResponse.current = false;
+            setShowedHintEnd(true);
+            updated.push({
+              role: "bongshin",
+              content: "크흠... 이제는 직접 질문하거라. 봉신이 계속 힌트를 줄 수는 없지.",
+            });
+          }
+          return updated;
+        });
 
         // 정답 캡처: guess 필드가 있으면 저장, 없으면 메시지에서 추출 시도
         if (data.guess) {
@@ -166,7 +166,13 @@ function GameContent() {
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
     if (loading || gameOver) return;
-    if (fromSuggested) setSuggestedUsedCount((c) => c + 1);
+    if (fromSuggested) {
+      const newCount = suggestedUsedCount + 1;
+      setSuggestedUsedCount(newCount);
+      if (newCount >= 4 && !showedHintEnd) {
+        showHintAfterResponse.current = true;
+      }
+    }
     setMessages((prev) => [...prev, { role: "user", content: answer }]);
     await sendToAPI(answer, history);
   }
