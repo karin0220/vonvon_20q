@@ -230,13 +230,12 @@ function GameContent() {
   return (
     <div className="flex-1 flex flex-col w-full h-dvh relative">
       {/* 배경 봉신 이미지 */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden animate-bg-fade-in">
         <Image
           src="/chat-bg.jpg"
           alt=""
           fill
           className="object-cover object-top"
-          style={{ opacity: 0.2 }}
           priority
         />
       </div>

@@ -109,3 +109,13 @@ html, body {
   0% { transform: translate3d(0, 0, 0); }
   100% { transform: translate3d(-50%, 0, 0); }
 }
+
+@keyframes bg-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 0.25; }
+}
+
+.animate-bg-fade-in {
+  opacity: 0;
+  animation: bg-fade-in 2s ease-out 0.5s forwards;
+}
