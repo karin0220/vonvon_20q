@@ -25,7 +25,7 @@ export interface ChatResponse {
 
 export const CATEGORIES = [
   { id: "celebrity", label: "연예인", icon: "Sparkles" },
-  { id: "anime", label: "애니 캐릭터", icon: "Cat" },
+  { id: "anime", label: "애니 캐릭터", icon: "ChessKing" },
   { id: "mbti", label: "MBTI", icon: "Brain" },
   { id: "food", label: "음식", icon: "UtensilsCrossed" },
   { id: "animal", label: "동물", icon: "PawPrint" },
