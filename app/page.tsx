@@ -36,7 +36,7 @@ export default function Home() {
       </div>
 
       {/* 컨텐츠 영역 */}
-      <div className="px-5 pb-8 -mt-8 relative z-10 flex flex-col items-center">
+      <div className="px-5 pb-8 -mt-12 relative z-10 flex flex-col items-center">
         <Image
           src="/logo.png"
           alt="봉신과 스무고개"
