@@ -41,6 +41,7 @@ function GameContent() {
   const [turnCount, setTurnCount] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
+  const [awaitingGuessConfirmation, setAwaitingGuessConfirmation] = useState(false);
   const [input, setInput] = useState("");
   const [copied, setCopied] = useState(false);
   const [showedHintEnd, setShowedHintEnd] = useState(false);
@@ -101,6 +102,9 @@ function GameContent() {
       isInit = false
     ) => {
       setLoading(true);
+      if (mode === "ai-guesses") {
+        setAwaitingGuessConfirmation(false);
+      }
       try {
         const newHistory = [
           ...currentHistory,
@@ -127,7 +131,9 @@ function GameContent() {
           { role: "model" as const, content: data.message },
         ];
         setHistory(updatedHistory);
-        if (!isInit) setTurnCount((prev) => prev + 1);
+        if (!isInit) {
+          setTurnCount((prev) => prev + 1);
+        }
 
         setMessages((prev) => {
           const updated = [
@@ -156,12 +162,17 @@ function GameContent() {
           setFinalAnswer(data.guess);
         }
 
-        if (data.isGameOver) {
+        if (mode === "ai-guesses") {
+          setAwaitingGuessConfirmation(data.isGuess);
+        }
+
+        if (mode === "user-guesses" && data.isGameOver) {
           setGameOver(true);
         }
 
         return updatedHistory;
       } catch {
+        setAwaitingGuessConfirmation(false);
         setMessages((prev) => [
           ...prev,
           {
@@ -190,7 +201,7 @@ function GameContent() {
   }, [mode, category, sendToAPI, showIntro]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
-    if (loading || gameOver) return;
+    if (loading || gameOver || awaitingGuessConfirmation) return;
     if (fromSuggested) {
       const newCount = suggestedUsedCount + 1;
       setSuggestedUsedCount(newCount);
@@ -203,6 +214,9 @@ function GameContent() {
   }
 
   async function handleGuessResponse(correct: boolean) {
+    if (loading || gameOver || !awaitingGuessConfirmation) return;
+
+    setAwaitingGuessConfirmation(false);
     const response = correct
       ? "맞아! 정답이야!"
       : "아니, 틀렸어. 다시 시도해봐.";
@@ -226,7 +240,7 @@ function GameContent() {
 
   // 20턴 도달 시 강제 종료
   useEffect(() => {
-    if (turnCount >= 20 && !gameOver) {
+    if (turnCount >= 20 && !gameOver && !awaitingGuessConfirmation) {
       setGameOver(true);
       if (mode === "ai-guesses") {
         setShowReveal(true);
@@ -249,7 +263,7 @@ function GameContent() {
         ]);
       }
     }
-  }, [turnCount, mode, gameOver, finalAnswer]);
+  }, [turnCount, mode, gameOver, finalAnswer, awaitingGuessConfirmation]);
 
   function handleSubmitInput() {
     if (!input.trim() || loading || gameOver) return;
@@ -359,7 +373,9 @@ function GameContent() {
                   {msg.isGuess &&
                     !msg.isCorrect &&
                     !gameOver &&
-                    mode === "ai-guesses" && (
+                    mode === "ai-guesses" &&
+                    awaitingGuessConfirmation &&
+                    i === messages.length - 1 && (
                       <div className="flex gap-2 mt-2">
                         <button
                           onClick={() => handleGuessResponse(true)}
@@ -434,18 +450,24 @@ function GameContent() {
         {!gameOver ? (
           mode === "ai-guesses" ? (
             <div className="px-4 py-3 border-t border-border">
-              <div className="flex gap-2 justify-center">
-                {["응, 맞아", "아니", "모르겠어"].map((answer) => (
-                  <button
-                    key={answer}
-                    onClick={() => handleUserResponse(answer)}
-                    disabled={loading}
-                    className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text active:bg-mystic active:text-black active:border-mystic transition-all disabled:opacity-50"
-                  >
-                    {answer}
-                  </button>
-                ))}
-              </div>
+              {awaitingGuessConfirmation ? (
+                <p className="text-center text-sm text-text-dim">
+                  위의 버튼으로 대답해줘
+                </p>
+              ) : (
+                <div className="flex gap-2 justify-center">
+                  {["응, 맞아", "아니", "모르겠어"].map((answer) => (
+                    <button
+                      key={answer}
+                      onClick={() => handleUserResponse(answer)}
+                      disabled={loading}
+                      className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text active:bg-mystic active:text-black active:border-mystic transition-all disabled:opacity-50"
+                    >
+                      {answer}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="px-4 py-3 border-t border-border">
@@ -483,7 +505,7 @@ function GameContent() {
                 onChange={(e) => setRevealInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleRevealSubmit(); }}
                 placeholder="정답을 입력해줘"
-                className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-base text-text placeholder:text-text-dim"
                 autoFocus
               />
               <button
