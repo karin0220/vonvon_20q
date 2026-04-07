@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { ChatMessage, ChatResponse, GameMode } from "@/lib/types";
 
 function getFakeAverage(answer: string): number {
@@ -244,8 +245,18 @@ function GameContent() {
       </header>
 
       {/* 채팅 영역 — 메시지가 하단부터 쌓임 (카톡 방식) */}
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto flex flex-col">
-        <div className="mt-auto px-4 py-4 space-y-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto flex flex-col relative">
+        {/* 배경 봉신 이미지 */}
+        <div className="fixed inset-0 z-0 pointer-events-none" style={{ top: "49px" }}>
+          <Image
+            src="/bongshin.png"
+            alt=""
+            fill
+            className="object-cover object-top opacity-15"
+          />
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+        <div className="mt-auto px-4 py-4 space-y-4 relative z-10">
         {messages.map((msg, i) => (
           <div key={i}>
             {msg.role === "bongshin" ? (

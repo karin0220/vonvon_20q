@@ -8,6 +8,13 @@ import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame, Globe } from "
 
 const ICONS = { Sparkles, ChessKing, Box, PawPrint, Clapperboard } as const;
 
+const RECENT_ANSWERS = [
+  "아이유", "나루토", "피카츄", "김연아", "짱구",
+  "손흥민", "엘사", "루피", "BTS", "고양이",
+  "아이폰", "치킨", "해리포터", "마리오", "이순신",
+  "토토로", "블랙핑크", "기생충", "강아지", "라면",
+];
+
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<GameMode>("user-guesses");
@@ -22,6 +29,17 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col">
+      {/* 전광판 — 최근 플레이 정답 */}
+      <div className="relative overflow-hidden bg-bg-card/80 border-b border-border py-2">
+        <div className="animate-marquee flex gap-6 whitespace-nowrap">
+          {[...RECENT_ANSWERS, ...RECENT_ANSWERS].map((answer, i) => (
+            <span key={i} className="text-xs text-text-dim">
+              <span className="text-mystic/70">🔮</span> {answer}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* 히어로 이미지 + 그라데이션 */}
       <div className="relative w-full animate-hero-in" style={{ aspectRatio: "2016/1917" }}>
         <Image
