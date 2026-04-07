@@ -223,20 +223,32 @@ function GameContent() {
     }
   }
 
-  // ai-guesses 모드: 20턴 도달 시 강제 종료
+  // 20턴 도달 시 강제 종료
   useEffect(() => {
-    if (mode === "ai-guesses" && turnCount >= 20 && !gameOver) {
+    if (turnCount >= 20 && !gameOver) {
       setGameOver(true);
-      setShowReveal(true);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "bongshin",
-          content: "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?",
-        },
-      ]);
+      if (mode === "ai-guesses") {
+        setShowReveal(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "bongshin",
+            content: "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?",
+          },
+        ]);
+      } else {
+        // user-guesses 모드: 정답 공개
+        const answer = finalAnswer || "알 수 없는 무언가";
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "bongshin",
+            content: `시간이 다 됐다... 봉신이 떠올린 건 "${answer}"이었지. 다음엔 더 날카롭게 파고들어 봐.`,
+          },
+        ]);
+      }
     }
-  }, [turnCount, mode, gameOver]);
+  }, [turnCount, mode, gameOver, finalAnswer]);
 
   function handleSubmitInput() {
     if (!input.trim() || loading || gameOver) return;
