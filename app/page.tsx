@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { GameMode, CATEGORIES, getDailyCategory } from "@/lib/types";
 import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame, Globe } from "lucide-react";
@@ -16,9 +16,11 @@ const RECENT_ANSWERS = [
   "뽀로로", "김치찌개", "스파이더맨", "테슬라", "유재석",
 ];
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
-  const [mode, setMode] = useState<GameMode>("user-guesses");
+  const searchParams = useSearchParams();
+  const initialMode = (searchParams.get("mode") as GameMode) || "user-guesses";
+  const [mode, setMode] = useState<GameMode>(initialMode);
   const [starting, setStarting] = useState(false);
   const dailyCategory = useMemo(() => getDailyCategory(), []);
 
@@ -148,5 +150,13 @@ export default function Home() {
         )} */}
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
   );
 }

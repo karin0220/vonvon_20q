@@ -97,7 +97,8 @@ function GameContent() {
   const sendToAPI = useCallback(
     async (
       userMessage: string,
-      currentHistory: { role: "user" | "model"; content: string }[]
+      currentHistory: { role: "user" | "model"; content: string }[],
+      isInit = false
     ) => {
       setLoading(true);
       try {
@@ -126,7 +127,7 @@ function GameContent() {
           { role: "model" as const, content: data.message },
         ];
         setHistory(updatedHistory);
-        setTurnCount(data.turnCount);
+        if (!isInit) setTurnCount((prev) => prev + 1);
 
         setMessages((prev) => {
           const updated = [
@@ -185,7 +186,7 @@ function GameContent() {
         ? `게임을 시작한다. 유저가 "${category}" 카테고리에서 하나를 떠올렸다. 첫 질문을 해라.`
         : `게임을 시작한다. "${category}" 카테고리에서 하나를 골라라. 정답은 밝히지 말고 게임 시작 멘트를 해라.`;
 
-    sendToAPI(initMessage, []);
+    sendToAPI(initMessage, [], true);
   }, [mode, category, sendToAPI, showIntro]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
@@ -513,7 +514,7 @@ function GameContent() {
 
             <div className="flex gap-2 justify-center">
               <button
-                onClick={() => router.push("/")}
+                onClick={() => router.push(`/?mode=${mode}`)}
                 className="px-5 py-2.5 rounded-full bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors"
               >
                 다시 하기
