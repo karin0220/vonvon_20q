@@ -7,6 +7,7 @@ const CATEGORY_HINTS: Record<string, string> = {
   "음식": "한식, 양식, 중식, 일식, 디저트, 음료 등",
   "동물": "포유류, 조류, 어류, 곤충, 파충류 등 모든 동물",
   "영화/드라마": "한국 또는 해외의 영화, 드라마, 시리즈 작품",
+  "전체": "유명인, 캐릭터, 사물, 동물, 영화/드라마 등 모든 카테고리",
 };
 
 function getCategoryHint(category: string): string {

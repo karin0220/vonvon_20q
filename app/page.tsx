@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { GameMode, CATEGORIES } from "@/lib/types";
-import { Sparkles, ChessKing, Box, UtensilsCrossed, PawPrint, Clapperboard } from "lucide-react";
+import { GameMode, CATEGORIES, getDailyCategory } from "@/lib/types";
+import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame } from "lucide-react";
 
-const ICONS = { Sparkles, ChessKing, Box, UtensilsCrossed, PawPrint, Clapperboard } as const;
+const ICONS = { Sparkles, ChessKing, Box, PawPrint, Clapperboard } as const;
 
 export default function Home() {
   const router = useRouter();
-  const [mode, setMode] = useState<GameMode>("ai-guesses");
+  const [mode, setMode] = useState<GameMode>("user-guesses");
   const [customCategory, setCustomCategory] = useState("");
   const [showCustom, setShowCustom] = useState(false);
+  const dailyCategory = useMemo(() => getDailyCategory(), []);
 
   function startGame(category: string) {
     const params = new URLSearchParams({ mode, category });
@@ -30,7 +31,6 @@ export default function Home() {
           className="object-cover"
           priority
         />
-        {/* 하단 그라데이션 오버레이 */}
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
       </div>
 
@@ -46,18 +46,8 @@ export default function Home() {
           />
         </div>
 
-        {/* 모드 토글 */}
+        {/* 모드 토글 — 네가 맞춰봐가 먼저 */}
         <div className="w-full bg-bg-card rounded-full p-1 flex mb-8 border border-border">
-          <button
-            onClick={() => setMode("ai-guesses")}
-            className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-all ${
-              mode === "ai-guesses"
-                ? "bg-mystic text-black shadow-md"
-                : "text-text-dim hover:text-text"
-            }`}
-          >
-            봉신이 맞출게
-          </button>
           <button
             onClick={() => setMode("user-guesses")}
             className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-all ${
@@ -68,6 +58,16 @@ export default function Home() {
           >
             네가 맞춰봐
           </button>
+          <button
+            onClick={() => setMode("ai-guesses")}
+            className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-all ${
+              mode === "ai-guesses"
+                ? "bg-mystic text-black shadow-md"
+                : "text-text-dim hover:text-text"
+            }`}
+          >
+            봉신이 맞출게
+          </button>
         </div>
 
         {/* 카테고리 선택 */}
@@ -77,6 +77,17 @@ export default function Home() {
             : "봉신이 무엇을 떠올릴까?"}
         </p>
         <div className="grid grid-cols-3 gap-3 w-full mb-4">
+          {/* 오늘의 주제 / 전체 */}
+          <button
+            onClick={() => startGame(mode === "user-guesses" ? dailyCategory : "전체")}
+            className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover border border-mystic/30 hover:border-mystic/60 transition-all animate-gold-glow"
+          >
+            <Flame className="w-6 h-6 text-mystic" />
+            <span className="text-sm font-medium text-mystic">
+              {mode === "user-guesses" ? "오늘의 주제" : "전체"}
+            </span>
+          </button>
+
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
