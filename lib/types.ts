@@ -12,6 +12,7 @@ export interface ChatRequest {
   mode: GameMode;
   category: string;
   messages: { role: "user" | "model"; content: string }[];
+  fixedAnswer?: string;
 }
 
 export interface ChatResponse {

@@ -4,11 +4,32 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChatMessage, ChatResponse, GameMode } from "@/lib/types";
 
+// 정답 기반으로 일관된 가짜 평균 턴수 생성 (10~16 범위)
+function getFakeAverage(answer: string): number {
+  let hash = 0;
+  for (let i = 0; i < answer.length; i++) {
+    hash = (hash * 31 + answer.charCodeAt(i)) | 0;
+  }
+  return 10 + (Math.abs(hash) % 7); // 10~16
+}
+
+function getTeasingMessage(userTurns: number, avgTurns: number): string {
+  const diff = userTurns - avgTurns;
+  if (diff <= -5) return "흠... 제법이군. 봉신도 인정하지 않을 수 없다.";
+  if (diff <= -2) return "크흠, 꽤 빠르군. 운이 좋았을 뿐이다.";
+  if (diff <= 0) return "평범하군. 봉신의 유리구슬 앞에선 다 그 정도야.";
+  if (diff <= 3) return "크크크... 좀 느리지 않았나? 다른 사람들은 더 빨랐는데.";
+  return "하하하! 이렇게 오래 걸리다니... 봉신이 다 걱정된다.";
+}
+
 function GameContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const mode = (searchParams.get("mode") || "ai-guesses") as GameMode;
-  const category = searchParams.get("category") || "연예인";
+  const category = searchParams.get("category") || "유명인";
+  const fixedAnswer = searchParams.get("answer")
+    ? decodeURIComponent(atob(searchParams.get("answer")!))
+    : undefined;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<
@@ -17,7 +38,9 @@ function GameContent() {
   const [loading, setLoading] = useState(false);
   const [turnCount, setTurnCount] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [copied, setCopied] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -44,7 +67,12 @@ function GameContent() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode, category, messages: newHistory }),
+          body: JSON.stringify({
+            mode,
+            category,
+            messages: newHistory,
+            fixedAnswer,
+          }),
         });
 
         if (!res.ok) throw new Error("API error");
@@ -68,7 +96,10 @@ function GameContent() {
           },
         ]);
 
-        if (data.isGameOver) {
+        if (data.isGameOver && data.guess) {
+          setFinalAnswer(data.guess);
+          setGameOver(true);
+        } else if (data.isGameOver) {
           setGameOver(true);
         }
 
@@ -86,10 +117,9 @@ function GameContent() {
         setLoading(false);
       }
     },
-    [mode, category]
+    [mode, category, fixedAnswer]
   );
 
-  // Initialize game
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -104,7 +134,6 @@ function GameContent() {
 
   async function handleUserResponse(answer: string) {
     if (loading || gameOver) return;
-
     setMessages((prev) => [...prev, { role: "user", content: answer }]);
     await sendToAPI(answer, history);
   }
@@ -137,6 +166,27 @@ function GameContent() {
     setInput("");
     handleUserResponse(msg);
   }
+
+  function handleShare() {
+    const origin = window.location.origin;
+
+    if (mode === "user-guesses" && finalAnswer) {
+      // 정답 고정 공유 링크
+      const encoded = btoa(encodeURIComponent(finalAnswer));
+      const shareUrl = `${origin}/play?mode=user-guesses&category=${encodeURIComponent(category)}&answer=${encoded}`;
+      const text = `봉신이 낸 문제를 ${turnCount}번 만에 맞췄다! 너도 도전해봐 🔮\n${shareUrl}`;
+      navigator.clipboard.writeText(text);
+    } else {
+      // 게임 자체 공유
+      const text = `봉신과 스무고개 - 봉신이 유리구슬로 당신의 마음을 읽습니다 🔮\n${origin}`;
+      navigator.clipboard.writeText(text);
+    }
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const avgTurns = finalAnswer ? getFakeAverage(finalAnswer) : null;
 
   return (
     <div className="flex-1 flex flex-col w-full h-full">
@@ -177,7 +227,6 @@ function GameContent() {
                     {msg.content}
                   </div>
 
-                  {/* AI가 맞추기 모드: 추측일 때 맞다/틀리다 버튼 */}
                   {msg.isGuess &&
                     !msg.isCorrect &&
                     !gameOver &&
@@ -198,7 +247,6 @@ function GameContent() {
                       </div>
                     )}
 
-                  {/* 유저 맞추기 모드: 추천 질문 */}
                   {msg.suggestedQuestions &&
                     !gameOver &&
                     i === messages.length - 1 && (
@@ -293,10 +341,23 @@ function GameContent() {
           </div>
         )
       ) : (
-        <div className="px-4 py-4 border-t border-border text-center space-y-3">
+        <div className="px-4 py-5 border-t border-border text-center space-y-4">
+          {/* 네가 맞춰봐 모드: 평균 턴수 + 약올리기 */}
+          {mode === "user-guesses" && avgTurns && (
+            <div className="bg-bg-card border border-border rounded-2xl px-4 py-3 space-y-1">
+              <p className="text-xs text-text-dim">
+                다른 사람들은 평균 <span className="text-mystic font-bold">{avgTurns}번</span> 만에 맞췄다
+              </p>
+              <p className="text-sm text-mystic-light font-medium">
+                {getTeasingMessage(turnCount, avgTurns)}
+              </p>
+            </div>
+          )}
+
           <p className="text-sm text-mystic font-medium">
             게임 종료! ({turnCount}턴)
           </p>
+
           <div className="flex gap-2 justify-center">
             <button
               onClick={() => router.push("/")}
@@ -305,15 +366,10 @@ function GameContent() {
               다시 하기
             </button>
             <button
-              onClick={() => {
-                const text = `봉신의 스무고개에서 ${turnCount}턴 만에 ${
-                  mode === "ai-guesses" ? "봉신이 맞췄다" : "맞췄다"
-                }! 🔮`;
-                navigator.clipboard.writeText(text);
-              }}
+              onClick={handleShare}
               className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-text text-sm font-medium hover:border-mystic/50 transition-colors"
             >
-              결과 공유
+              {copied ? "복사됨!" : mode === "user-guesses" ? "도전장 보내기" : "공유하기"}
             </button>
           </div>
         </div>

@@ -8,9 +8,9 @@ const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL
 export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
-    const { mode, category, messages } = body;
+    const { mode, category, messages, fixedAnswer } = body;
 
-    const systemPrompt = getSystemPrompt(mode, category);
+    const systemPrompt = getSystemPrompt(mode, category, fixedAnswer);
 
     const contents = messages.map((m) => ({
       role: m.role,

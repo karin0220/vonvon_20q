@@ -13,7 +13,7 @@ function getCategoryHint(category: string): string {
   return CATEGORY_HINTS[category] || category;
 }
 
-export function getSystemPrompt(mode: GameMode, category: string): string {
+export function getSystemPrompt(mode: GameMode, category: string, fixedAnswer?: string): string {
   const hint = getCategoryHint(category);
 
   if (mode === "ai-guesses") {
@@ -43,12 +43,16 @@ export function getSystemPrompt(mode: GameMode, category: string): string {
 20턴이 지나면 isGameOver: true로 보내고 마지막 추측을 해.`;
   }
 
+  const answerInstruction = fixedAnswer
+    ? `- 봉신이 떠올린 정답은 반드시 "${fixedAnswer}"이다. 절대 다른 것을 고르지 마.`
+    : `- 게임 시작 시 "${category}" 카테고리에서 하나를 골라 (유명하고 재미있는 걸로)`;
+
   return `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
 유리구슬로 무언가를 점쳐서 "${category}" 카테고리에서 하나를 떠올렸어. (범위: ${hint})
 유저가 질문해서 그걸 맞춰야 하는 게임이야.
 
 규칙:
-- 게임 시작 시 "${category}" 카테고리에서 하나를 골라 (유명하고 재미있는 걸로)
+${answerInstruction}
 - 유저의 질문에 "그렇지", "아니야", "글쎄... 반은 맞고 반은 틀리다" 같은 식으로 캐릭터성 있게 답해
 - 매 턴마다 유저가 물어볼 만한 추천 질문 3~4개를 suggestedQuestions로 제공해
 - 유저가 정답을 말하면 맞았는지 알려줘
