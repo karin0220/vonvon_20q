@@ -542,21 +542,20 @@ function GameContent() {
           )
         ) : showReveal ? (
           <div className="px-4 py-3 border-t border-border">
-            <p className="text-xs text-text-dim text-center mb-2">정답을 알려주세요</p>
-            <div className="flex gap-2">
+            <div className="flex items-stretch gap-2">
               <input
                 type="text"
                 value={revealInput}
                 onChange={(e) => setRevealInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleRevealSubmit(); }}
                 placeholder="정답을 입력해줘"
-                className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-base text-text placeholder:text-text-dim"
+                className="min-w-0 flex-1 rounded-2xl bg-bg-card border border-border px-4 py-3 text-base leading-6 text-text placeholder:text-text-dim focus:border-mystic/50 focus:outline-none"
                 autoFocus
               />
               <button
                 onClick={handleRevealSubmit}
                 disabled={!revealInput.trim()}
-                className="px-4 py-2.5 rounded-xl bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors disabled:opacity-50"
+                className="min-w-[72px] rounded-2xl bg-mystic px-4 py-3 text-sm font-semibold text-black hover:bg-mystic-light transition-colors disabled:opacity-50"
               >
                 전송
               </button>
