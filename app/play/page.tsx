@@ -237,7 +237,7 @@ function GameContent() {
           onClick={() => router.push("/")}
           className="text-text-dim hover:text-mystic-light text-sm"
         >
-          ← 돌아가기
+          ←
         </button>
         <div className="text-center">
           <span className="text-xs text-text-dim">{category}</span>

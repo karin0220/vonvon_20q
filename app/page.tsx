@@ -11,9 +11,11 @@ const ICONS = { Sparkles, ChessKing, Box, PawPrint, Clapperboard } as const;
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<GameMode>("user-guesses");
+  const [starting, setStarting] = useState(false);
   const dailyCategory = useMemo(() => getDailyCategory(), []);
 
   function startGame(category: string) {
+    setStarting(true);
     const params = new URLSearchParams({ mode, category });
     router.push(`/play?${params.toString()}`);
   }
@@ -85,7 +87,8 @@ export default function Home() {
           {/* 오늘의 주제 / 전체 */}
           <button
             onClick={() => startGame(mode === "user-guesses" ? dailyCategory : "전체")}
-            className={`flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover transition-all ${
+            disabled={starting}
+            className={`flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover transition-all disabled:opacity-50 ${
               mode === "user-guesses"
                 ? "border border-mystic/30 hover:border-mystic/60 animate-gold-glow"
                 : "border border-border hover:border-mystic/50"
@@ -104,7 +107,8 @@ export default function Home() {
             <button
               key={cat.id}
               onClick={() => startGame(cat.label)}
-              className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover border border-border hover:border-mystic/50 transition-all"
+              disabled={starting}
+              className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover border border-border hover:border-mystic/50 transition-all disabled:opacity-50"
             >
               {(() => { const Icon = ICONS[cat.icon]; return <Icon className="w-6 h-6 text-mystic" />; })()}
               <span className="text-sm font-medium text-text">
@@ -113,6 +117,12 @@ export default function Home() {
             </button>
           ))}
         </div>
+
+        {starting && (
+          <div className="mt-6 text-mystic animate-pulse-slow text-sm">
+            봉신이 유리구슬을 닦고 있다...
+          </div>
+        )}
       </div>
     </main>
   );
