@@ -4,15 +4,13 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { GameMode, CATEGORIES, getDailyCategory } from "@/lib/types";
-import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame } from "lucide-react";
+import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame, Globe } from "lucide-react";
 
 const ICONS = { Sparkles, ChessKing, Box, PawPrint, Clapperboard } as const;
 
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<GameMode>("user-guesses");
-  const [customCategory, setCustomCategory] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
   const dailyCategory = useMemo(() => getDailyCategory(), []);
 
   function startGame(category: string) {
@@ -23,7 +21,7 @@ export default function Home() {
   return (
     <main className="flex-1 flex flex-col">
       {/* 히어로 이미지 + 그라데이션 */}
-      <div className="relative w-full" style={{ aspectRatio: "2016/1917" }}>
+      <div className="relative w-full animate-hero-in" style={{ aspectRatio: "2016/1917" }}>
         <Image
           src="/bongshin.png"
           alt="봉신"
@@ -48,7 +46,7 @@ export default function Home() {
 
       {/* 컨텐츠 영역 */}
       <div className="px-5 pb-8 -mt-12 relative z-10 flex flex-col items-center">
-        <div className="mb-6 w-full max-w-[360px] animate-fade-in" style={{ aspectRatio: "4400/1237" }}>
+        <div className="mb-6 w-full max-w-[360px] animate-logo-in" style={{ aspectRatio: "4400/1237" }}>
           <Image
             src="/logo.png"
             alt="봉신과 스무고개"
@@ -58,7 +56,7 @@ export default function Home() {
           />
         </div>
 
-        {/* 모드 토글 — 네가 맞춰봐가 먼저 */}
+        {/* 모드 토글 */}
         <div className="w-full bg-bg-card rounded-full p-1 flex mb-8 border border-border">
           <button
             onClick={() => setMode("user-guesses")}
@@ -88,7 +86,7 @@ export default function Home() {
             ? "무엇을 떠올릴 건가?"
             : "봉신이 무엇을 떠올릴까?"}
         </p>
-        <div className="grid grid-cols-3 gap-3 w-full mb-4">
+        <div className="grid grid-cols-3 gap-3 w-full">
           {/* 오늘의 주제 / 전체 */}
           <button
             onClick={() => startGame(mode === "user-guesses" ? dailyCategory : "전체")}
@@ -98,7 +96,10 @@ export default function Home() {
                 : "border border-border hover:border-mystic/50"
             }`}
           >
-            <Flame className="w-6 h-6 text-mystic" />
+            {mode === "user-guesses"
+              ? <Flame className="w-6 h-6 text-mystic" />
+              : <Globe className="w-6 h-6 text-mystic" />
+            }
             <span className={`text-sm font-medium ${mode === "user-guesses" ? "text-mystic" : "text-text"}`}>
               {mode === "user-guesses" ? "오늘의 주제" : "전체"}
             </span>
@@ -117,40 +118,6 @@ export default function Home() {
             </button>
           ))}
         </div>
-
-        {/* 직접 입력 */}
-        {!showCustom ? (
-          <button
-            onClick={() => setShowCustom(true)}
-            className="text-sm text-text-dim hover:text-mystic-light underline underline-offset-4 transition-colors"
-          >
-            직접 입력하기
-          </button>
-        ) : (
-          <div className="flex gap-2 w-full">
-            <input
-              type="text"
-              value={customCategory}
-              onChange={(e) => setCustomCategory(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && customCategory.trim()) {
-                  startGame(customCategory.trim());
-                }
-              }}
-              placeholder="카테고리를 입력해봐"
-              className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
-              autoFocus
-            />
-            <button
-              onClick={() => {
-                if (customCategory.trim()) startGame(customCategory.trim());
-              }}
-              className="px-5 py-2.5 rounded-xl bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors"
-            >
-              시작
-            </button>
-          </div>
-        )}
       </div>
     </main>
   );
