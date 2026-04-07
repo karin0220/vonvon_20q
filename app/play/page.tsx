@@ -22,6 +22,9 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
   return "하하하! 이렇게 오래 걸리다니... 봉신이 다 걱정된다.";
 }
 
+const AI_REVEAL_PROMPT =
+  "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
+
 function GameContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -110,6 +113,9 @@ function GameContent() {
           ...currentHistory,
           { role: "user" as const, content: userMessage },
         ];
+        const nextTurnCount = isInit
+          ? 0
+          : currentHistory.filter((message) => message.role === "user").length;
 
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -132,15 +138,21 @@ function GameContent() {
         ];
         setHistory(updatedHistory);
         if (!isInit) {
-          setTurnCount((prev) => prev + 1);
+          setTurnCount(nextTurnCount);
         }
+
+        const shouldForceAiReveal =
+          mode === "ai-guesses" &&
+          !isInit &&
+          nextTurnCount >= 20 &&
+          !data.isGuess;
 
         setMessages((prev) => {
           const updated = [
             ...prev,
             {
               role: "bongshin" as const,
-              content: data.message,
+              content: shouldForceAiReveal ? AI_REVEAL_PROMPT : data.message,
               suggestedQuestions: data.suggestedQuestions || undefined,
               isGuess: data.isGuess,
             },
@@ -163,11 +175,16 @@ function GameContent() {
         }
 
         if (mode === "ai-guesses") {
-          setAwaitingGuessConfirmation(data.isGuess);
+          setAwaitingGuessConfirmation(shouldForceAiReveal ? false : data.isGuess);
         }
 
         if (mode === "user-guesses" && data.isGameOver) {
           setGameOver(true);
+        }
+
+        if (shouldForceAiReveal) {
+          setGameOver(true);
+          setShowReveal(true);
         }
 
         return updatedHistory;
@@ -201,7 +218,7 @@ function GameContent() {
   }, [mode, category, sendToAPI, showIntro]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
-    if (loading || gameOver || awaitingGuessConfirmation) return;
+    if (loading || gameOver || awaitingGuessConfirmation || turnCount >= 20) return;
     if (fromSuggested) {
       const newCount = suggestedUsedCount + 1;
       setSuggestedUsedCount(newCount);
@@ -233,6 +250,16 @@ function GameContent() {
           isCorrect: true,
         },
       ]);
+    } else if (turnCount >= 20) {
+      setGameOver(true);
+      setShowReveal(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "bongshin",
+          content: AI_REVEAL_PROMPT,
+        },
+      ]);
     } else {
       await sendToAPI(response, history);
     }
@@ -240,30 +267,18 @@ function GameContent() {
 
   // 20턴 도달 시 강제 종료
   useEffect(() => {
-    if (turnCount >= 20 && !gameOver && !awaitingGuessConfirmation) {
+    if (mode === "user-guesses" && turnCount >= 20 && !gameOver) {
       setGameOver(true);
-      if (mode === "ai-guesses") {
-        setShowReveal(true);
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "bongshin",
-            content: "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?",
-          },
-        ]);
-      } else {
-        // user-guesses 모드: 정답 공개
-        const answer = finalAnswer || "알 수 없는 무언가";
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "bongshin",
-            content: `시간이 다 됐다... 봉신이 떠올린 건 "${answer}"이었지. 다음엔 더 날카롭게 파고들어 봐.`,
-          },
-        ]);
-      }
+      const answer = finalAnswer || "알 수 없는 무언가";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "bongshin",
+          content: `시간이 다 됐다... 봉신이 떠올린 건 "${answer}"이었지. 다음엔 더 날카롭게 파고들어 봐.`,
+        },
+      ]);
     }
-  }, [turnCount, mode, gameOver, finalAnswer, awaitingGuessConfirmation]);
+  }, [turnCount, mode, gameOver, finalAnswer]);
 
   function handleSubmitInput() {
     if (!input.trim() || loading || gameOver) return;
