@@ -41,7 +41,9 @@ function GameContent() {
   const [input, setInput] = useState("");
   const [copied, setCopied] = useState(false);
   const [showedHintEnd, setShowedHintEnd] = useState(false);
+  const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
   const scrollToBottom = () => {
@@ -52,9 +54,23 @@ function GameContent() {
     scrollToBottom();
   }, [messages]);
 
-  // 추천 질문이 끝나는 시점에 안내 메시지 표시
+  // 모바일 키보드 올라올 때 채팅 스크롤 처리
   useEffect(() => {
-    if (mode === "user-guesses" && turnCount === 4 && !showedHintEnd && !gameOver) {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const handleResize = () => {
+      // 키보드가 올라오면 viewport 높이가 줄어듦 → 스크롤
+      setTimeout(scrollToBottom, 100);
+    };
+
+    viewport.addEventListener("resize", handleResize);
+    return () => viewport.removeEventListener("resize", handleResize);
+  }, []);
+
+  // 추천 질문을 4번 이상 사용했을 때 안내 메시지 표시
+  useEffect(() => {
+    if (mode === "user-guesses" && suggestedUsedCount >= 4 && !showedHintEnd && !gameOver) {
       setShowedHintEnd(true);
       setMessages((prev) => [
         ...prev,
@@ -64,7 +80,7 @@ function GameContent() {
         },
       ]);
     }
-  }, [turnCount, mode, showedHintEnd, gameOver]);
+  }, [suggestedUsedCount, mode, showedHintEnd, gameOver]);
 
   const sendToAPI = useCallback(
     async (
@@ -148,8 +164,9 @@ function GameContent() {
     sendToAPI(initMessage, []);
   }, [mode, category, sendToAPI]);
 
-  async function handleUserResponse(answer: string) {
+  async function handleUserResponse(answer: string, fromSuggested = false) {
     if (loading || gameOver) return;
+    if (fromSuggested) setSuggestedUsedCount((c) => c + 1);
     setMessages((prev) => [...prev, { role: "user", content: answer }]);
     await sendToAPI(answer, history);
   }
@@ -264,13 +281,13 @@ function GameContent() {
                   {msg.suggestedQuestions &&
                     mode === "user-guesses" &&
                     !gameOver &&
-                    turnCount <= 3 &&
+                    suggestedUsedCount < 4 &&
                     i === messages.length - 1 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {msg.suggestedQuestions.map((q, j) => (
                           <button
                             key={j}
-                            onClick={() => handleUserResponse(q)}
+                            onClick={() => handleUserResponse(q, true)}
                             disabled={loading}
                             className="px-3 py-1.5 rounded-full bg-bg-card border border-border text-text-dim text-xs active:border-mystic/50 active:text-mystic-light transition-colors disabled:opacity-50"
                           >
@@ -337,12 +354,14 @@ function GameContent() {
             <div className="px-4 py-3 border-t border-border">
               <div className="flex gap-2">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSubmitInput();
                   }}
+                  onFocus={() => setTimeout(scrollToBottom, 300)}
                   placeholder="질문하거나 정답을 말해봐"
                   className="flex-1 px-4 py-2.5 rounded-xl bg-bg-card border border-border focus:border-mystic/50 focus:outline-none text-sm text-text placeholder:text-text-dim"
                   disabled={loading}
