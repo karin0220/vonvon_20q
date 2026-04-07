@@ -22,13 +22,12 @@ export default function Home() {
   return (
     <main className="flex-1 flex flex-col">
       {/* 히어로 이미지 + 그라데이션 */}
-      <div className="relative w-full">
+      <div className="relative w-full" style={{ aspectRatio: "2016/1917" }}>
         <Image
           src="/bongshin.png"
           alt="봉신"
-          width={480}
-          height={480}
-          className="w-full h-auto"
+          fill
+          className="object-cover"
           priority
         />
         {/* 하단 그라데이션 오버레이 */}
@@ -37,13 +36,15 @@ export default function Home() {
 
       {/* 컨텐츠 영역 */}
       <div className="px-5 pb-8 -mt-12 relative z-10 flex flex-col items-center">
-        <Image
-          src="/logo.png"
-          alt="봉신과 스무고개"
-          width={360}
-          height={60}
-          className="mb-6 w-full max-w-[360px] h-auto"
-        />
+        <div className="mb-6 w-full max-w-[360px]" style={{ aspectRatio: "4400/1237" }}>
+          <Image
+            src="/logo.png"
+            alt="봉신과 스무고개"
+            width={440}
+            height={124}
+            className="w-full h-auto"
+          />
+        </div>
 
         {/* 모드 토글 */}
         <div className="w-full bg-bg-card rounded-full p-1 flex mb-8 border border-border">
