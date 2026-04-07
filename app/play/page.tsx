@@ -316,20 +316,6 @@ function GameContent() {
     handleUserResponse(msg);
   }
 
-  function handleSuggestedQuestionPick(question: string) {
-    if (bootstrapping || loading || gameOver) return;
-    const newCount = suggestedUsedCount + 1;
-    setSuggestedUsedCount(newCount);
-    if (newCount >= 4 && !showedHintEnd) {
-      setShowedHintEnd(true);
-    }
-    setInput(question);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      scrollToBottom();
-    });
-  }
-
   function handleRevealSubmit() {
     if (!revealInput.trim()) return;
     const answer = revealInput.trim();
@@ -478,22 +464,17 @@ function GameContent() {
                     !gameOver &&
                     suggestedUsedCount < 4 &&
                     i === messages.length - 1 && (
-                      <div className="mt-2 space-y-2">
-                        <p className="text-[11px] text-text-dim">
-                          이런 식으로 물어봐. 탭하면 입력창에 들어간다.
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {msg.suggestedQuestions.map((q, j) => (
                           <button
                             key={j}
-                            onClick={() => handleSuggestedQuestionPick(q)}
+                            onClick={() => handleUserResponse(q, true)}
                             disabled={loading || bootstrapping}
                             className="px-3 py-1.5 rounded-full bg-bg-card border border-border text-text-dim text-xs active:border-mystic/50 active:text-mystic-light transition-colors disabled:opacity-50"
                           >
                             {q}
                           </button>
                         ))}
-                        </div>
                       </div>
                     )}
                 </div>
