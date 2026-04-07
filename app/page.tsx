@@ -38,12 +38,13 @@ export default function Home() {
 
       {/* 컨텐츠 영역 */}
       <div className="px-5 pb-8 -mt-8 relative z-10 flex flex-col items-center">
-        <h1 className="text-2xl font-bold text-text-bright mb-1 text-center">
-          봉신과 스무고개
-        </h1>
-        <p className="text-text-dim text-sm mb-8 text-center">
-          봉신이 유리구슬로 당신의 마음을 읽습니다
-        </p>
+        <Image
+          src="/logo.png"
+          alt="봉신과 스무고개"
+          width={240}
+          height={80}
+          className="mb-6"
+        />
 
         {/* 모드 토글 */}
         <div className="w-full bg-bg-card rounded-full p-1 flex mb-8 border border-border">
