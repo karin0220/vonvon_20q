@@ -24,10 +24,10 @@ export interface ChatResponse {
 }
 
 export const CATEGORIES = [
-  { id: "celebrity", label: "연예인", emoji: "🌟" },
-  { id: "anime", label: "애니 캐릭터", emoji: "🎌" },
-  { id: "mbti", label: "MBTI", emoji: "🧠" },
-  { id: "food", label: "음식", emoji: "🍜" },
-  { id: "animal", label: "동물", emoji: "🐾" },
-  { id: "movie", label: "영화", emoji: "🎬" },
+  { id: "celebrity", label: "연예인", icon: "Mic" },
+  { id: "anime", label: "애니 캐릭터", icon: "Sparkles" },
+  { id: "mbti", label: "MBTI", icon: "Brain" },
+  { id: "food", label: "음식", icon: "UtensilsCrossed" },
+  { id: "animal", label: "동물", icon: "PawPrint" },
+  { id: "movie", label: "영화", icon: "Clapperboard" },
 ] as const;

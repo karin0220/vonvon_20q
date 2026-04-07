@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { GameMode, CATEGORIES } from "@/lib/types";
+import { Mic, Sparkles, Brain, UtensilsCrossed, PawPrint, Clapperboard } from "lucide-react";
+
+const ICONS = { Mic, Sparkles, Brain, UtensilsCrossed, PawPrint, Clapperboard } as const;
 
 export default function Home() {
   const router = useRouter();
@@ -78,7 +81,7 @@ export default function Home() {
               onClick={() => startGame(cat.label)}
               className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover border border-border hover:border-mystic/50 transition-all"
             >
-              <span className="text-2xl">{cat.emoji}</span>
+              {(() => { const Icon = ICONS[cat.icon]; return <Icon className="w-6 h-6 text-mystic" />; })()}
               <span className="text-sm font-medium text-text">
                 {cat.label}
               </span>
