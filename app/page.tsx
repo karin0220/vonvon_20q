@@ -9,10 +9,11 @@ import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame, Globe } from "
 const ICONS = { Sparkles, ChessKing, Box, PawPrint, Clapperboard } as const;
 
 const RECENT_ANSWERS = [
-  "아이유", "나루토", "피카츄", "김연아", "짱구",
-  "손흥민", "엘사", "루피", "BTS", "고양이",
-  "아이폰", "치킨", "해리포터", "마리오", "이순신",
-  "토토로", "블랙핑크", "기생충", "강아지", "라면",
+  "아이유", "나루토 우즈마키", "피카���", "오징어 게임", "짱구는 못말려",
+  "손��민", "엘���", "루피", "방탄소년단", "고양이",
+  "아이폰", "에스프레소 머신", "해리포터와 마법사의 돌", "슈퍼마리오", "이순신 장군",
+  "이웃집 토토로", "��랙핑크", "기생충", "골든 리트리버", "신라면",
+  "뽀로로", "김치찌개", "스파이더맨", "테슬라", "유재석",
 ];
 
 export default function Home() {
@@ -31,11 +32,15 @@ export default function Home() {
     <main className="flex-1 flex flex-col">
       {/* 전광판 — 최근 플레이 정답 */}
       <div className="relative overflow-hidden bg-bg-card/80 border-b border-border py-2">
-        <div className="animate-marquee flex gap-6 whitespace-nowrap">
-          {[...RECENT_ANSWERS, ...RECENT_ANSWERS].map((answer, i) => (
-            <span key={i} className="text-xs text-text-dim">
-              <span className="text-mystic/70">🔮</span> {answer}
-            </span>
+        <div className="flex animate-marquee">
+          {[0, 1].map((set) => (
+            <div key={set} className="flex shrink-0" style={{ gap: "2rem" }}>
+              {RECENT_ANSWERS.map((answer, i) => (
+                <span key={i} className="text-text-dim whitespace-nowrap" style={{ fontSize: `${11 + (answer.length % 3)}px`, marginRight: set === 0 && i === RECENT_ANSWERS.length - 1 ? "2rem" : undefined }}>
+                  <span className="text-mystic/70">🔮</span> {answer}
+                </span>
+              ))}
+            </div>
           ))}
         </div>
       </div>
