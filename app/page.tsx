@@ -91,10 +91,14 @@ export default function Home() {
           {/* 오늘의 주제 / 전체 */}
           <button
             onClick={() => startGame(mode === "user-guesses" ? dailyCategory : "전체")}
-            className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover border border-mystic/30 hover:border-mystic/60 transition-all animate-gold-glow"
+            className={`flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-bg-card hover:bg-bg-card-hover transition-all ${
+              mode === "user-guesses"
+                ? "border border-mystic/30 hover:border-mystic/60 animate-gold-glow"
+                : "border border-border hover:border-mystic/50"
+            }`}
           >
             <Flame className="w-6 h-6 text-mystic" />
-            <span className="text-sm font-medium text-mystic">
+            <span className={`text-sm font-medium ${mode === "user-guesses" ? "text-mystic" : "text-text"}`}>
               {mode === "user-guesses" ? "오늘의 주제" : "전체"}
             </span>
           </button>
