@@ -25,8 +25,10 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
 const AI_REVEAL_PROMPT =
   "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
 
-function resolveResponseType(data: ChatResponse): BongshinResponseType {
+function resolveResponseType(data: ChatResponse, mode: GameMode): BongshinResponseType {
   if (data.responseType) return data.responseType;
+  // user-guesses 모드에서는 challenge가 없음 — isGuess는 정답 확인이므로 result
+  if (mode === "user-guesses") return data.isGuess ? "result" : "question";
   return data.isGuess ? "challenge" : "question";
 }
 
@@ -136,7 +138,7 @@ function GameContent() {
         if (!res.ok) throw new Error("API error");
 
         const data: ChatResponse = await res.json();
-        const responseType = resolveResponseType(data);
+        const responseType = resolveResponseType(data, mode);
 
         const updatedHistory = [
           ...newHistory,
