@@ -190,8 +190,8 @@ function GameContent() {
 
   return (
     <div className="flex-1 flex flex-col w-full h-full">
-      {/* 헤더 */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border">
+      {/* 헤더 — 고정 */}
+      <header className="sticky top-0 z-20 bg-bg flex items-center justify-between px-4 py-3 border-b border-border">
         <button
           onClick={() => router.push("/")}
           className="text-text-dim hover:text-mystic-light text-sm"
@@ -256,7 +256,7 @@ function GameContent() {
                             key={j}
                             onClick={() => handleUserResponse(q)}
                             disabled={loading}
-                            className="px-3 py-1.5 rounded-full bg-bg-card border border-border text-text-dim text-xs hover:border-mystic/50 hover:text-mystic-light transition-colors disabled:opacity-50"
+                            className="px-3 py-1.5 rounded-full bg-bg-card border border-border text-text-dim text-xs active:border-mystic/50 active:text-mystic-light transition-colors disabled:opacity-50"
                           >
                             {q}
                           </button>
@@ -309,7 +309,7 @@ function GameContent() {
                   key={answer}
                   onClick={() => handleUserResponse(answer)}
                   disabled={loading}
-                  className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text hover:bg-mystic hover:text-black hover:border-mystic transition-all disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-full bg-bg-card border border-border text-sm font-medium text-text active:bg-mystic active:text-black active:border-mystic transition-all disabled:opacity-50"
                 >
                   {answer}
                 </button>
