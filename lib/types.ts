@@ -13,7 +13,7 @@ export interface ChatMessage {
 export interface ChatRequest {
   mode: GameMode;
   category: string;
-  messages: { role: "user" | "model"; content: string }[];
+  messages: { role: "user" | "model"; content: string; responseType?: BongshinResponseType }[];
   fixedAnswer?: string;
 }
 

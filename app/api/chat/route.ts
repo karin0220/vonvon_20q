@@ -169,7 +169,7 @@ function hasRecentWrongGuess(messages: ChatRequest["messages"]) {
 
 function countPreviousChallenges(messages: ChatRequest["messages"]) {
   return messages.filter(
-    (m) => m.role === "model" && m.content.includes("봉신의 도전")
+    (m) => m.role === "model" && m.responseType === "challenge"
   ).length;
 }
 

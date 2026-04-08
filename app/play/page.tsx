@@ -95,7 +95,7 @@ function GameContent() {
   const [introFading, setIntroFading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<
-    { role: "user" | "model"; content: string }[]
+    { role: "user" | "model"; content: string; responseType?: BongshinResponseType }[]
   >([]);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -160,7 +160,7 @@ function GameContent() {
   const sendToAPI = useCallback(
     async (
       userMessage: string,
-      currentHistory: { role: "user" | "model"; content: string }[],
+      currentHistory: { role: "user" | "model"; content: string; responseType?: BongshinResponseType }[],
       isInit = false
     ) => {
       setLoading(true);
@@ -192,7 +192,7 @@ function GameContent() {
 
         const updatedHistory = [
           ...newHistory,
-          { role: "model" as const, content: data.message },
+          { role: "model" as const, content: data.message, responseType },
         ];
         setHistory(updatedHistory);
         if (!isInit) {
@@ -212,7 +212,10 @@ function GameContent() {
             {
               role: "bongshin" as const,
               content: shouldForceAiReveal ? AI_REVEAL_PROMPT : data.message,
-              suggestedQuestions: data.suggestedQuestions || undefined,
+              suggestedQuestions:
+                mode === "user-guesses"
+                  ? pickRandomQuestions(category, 3)
+                  : data.suggestedQuestions || undefined,
               isGuess: responseType === "challenge",
               responseType: shouldForceAiReveal ? "result" : responseType,
             },
@@ -509,12 +512,13 @@ function GameContent() {
                       </div>
                     )}
 
-                  {mode === "user-guesses" &&
+                  {msg.suggestedQuestions &&
+                    mode === "user-guesses" &&
                     !gameOver &&
                     suggestedUsedCount < 2 &&
                     i === messages.length - 1 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
-                        {pickRandomQuestions(category, 3).map((q, j) => (
+                        {msg.suggestedQuestions.map((q, j) => (
                           <button
                             key={j}
                             onClick={() => handleUserResponse(q, true)}
