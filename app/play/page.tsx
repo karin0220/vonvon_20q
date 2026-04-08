@@ -6,54 +6,39 @@ import Image from "next/image";
 import { BongshinResponseType, ChatMessage, ChatResponse, GameMode } from "@/lib/types";
 import { getDefaultPromptTemplate, getSystemPrompt } from "@/lib/prompts";
 
-// 카테고리별 범용 질문 풀 — 힌트가 아닌 일반적인 스무고개 질문
-const GENERIC_QUESTIONS: Record<string, string[]> = {
+// 카테고리별 고정 질문 세트 (3세트 × 3문항) — 순서대로 노출, 겹침 없음
+const SUGGESTED_SETS: Record<string, string[][]> = {
   "유명인": [
-    "한국인이야?", "남자야?", "연예인이야?", "지금 살아있는 사람이야?",
-    "가수야?", "배우야?", "운동선수야?", "정치인이야?",
-    "유튜버야?", "20대야?", "30대야?", "아이돌이야?",
-    "솔로 활동해?", "예능에 자주 나와?", "해외에서도 유명해?",
-    "최근 5년 안에 유명해진 사람이야?", "드라마에 나온 적 있어?",
-    "실존 인물이야?", "역사 속 인물이야?",
+    ["한국인이야?", "남자야?", "연예인이야?"],
+    ["지금 살아있는 사람이야?", "가수야?", "30대 이상이야?"],
+    ["해외에서도 유명해?", "배우야?", "최근에 활동 중이야?"],
   ],
   "캐릭터": [
-    "남자 캐릭터야?", "주인공이야?", "일본 애니 캐릭터야?", "인간이야?",
-    "초능력이 있어?", "학생이야?", "악역이야?", "싸움을 잘해?",
-    "로맨스 작품이야?", "액션 작품이야?", "2010년 이후 작품이야?",
-    "게임 캐릭터야?", "영화에 나오는 캐릭터야?",
-    "동물 캐릭터야?", "로봇이야?", "마법을 써?",
-    "귀여운 캐릭터야?", "한국 작품이야?",
+    ["일본 애니 캐릭터야?", "남자야?", "주인공이야?"],
+    ["인간 캐릭터야?", "액션 작품이야?", "2010년 이후 작품이야?"],
+    ["초능력이 있어?", "학생이야?", "한국 작품이야?"],
   ],
   "영화": [
-    "한국 영화야?", "2020년 이후 개봉작이야?", "액션이야?",
-    "로맨스야?", "공포/스릴러야?", "코미디야?", "SF야?",
-    "실화 기반이야?", "속편이 있어?", "수상작이야?",
-    "주인공이 남자야?", "범죄 관련이야?", "시대극이야?",
-    "가족이 봐도 되는 영화야?", "할리우드 영화야?",
-    "애니메이션 영화야?", "천만 관객 영화야?",
+    ["한국 영화야?", "액션이야?", "2015년 이후 개봉작이야?"],
+    ["실화 기반이야?", "주인공이 남자야?", "속편이 있어?"],
+    ["코미디야?", "수상작이야?", "애니메이션이야?"],
   ],
   "드라마": [
-    "한국 드라마야?", "로맨스야?", "스릴러야?", "사극이야?",
-    "2020년 이후 작품이야?", "넷플릭스에서 볼 수 있어?",
-    "16부작 이상이야?", "시즌제야?", "지상파 드라마야?",
-    "주인공이 남자야?", "판타지야?", "학교 배경이야?",
-    "의학/법조 드라마야?", "미국 드라마야?", "범죄물이야?",
-    "원작이 있어?", "OST가 유명해?",
+    ["한국 드라마야?", "로맨스야?", "2020년 이후 작품이야?"],
+    ["지상파 드라마야?", "주인공이 남자야?", "16부작 이상이야?"],
+    ["판타지야?", "시즌제야?", "원작이 있어?"],
   ],
   "노래": [
-    "한국 노래야?", "솔로 가수야?", "남자가 불렀어?",
-    "댄스곡이야?", "발라드야?", "힙합이야?", "록이야?",
-    "2020년 이후 곡이야?", "아이돌 그룹이야?", "OST야?",
-    "뮤직비디오가 있어?", "영어 노래야?", "트로트야?",
-    "듀엣곡이야?", "걸그룹이야?", "보이그룹이야?",
-    "TikTok에서 유행했어?", "빌보드에 올라간 적 있어?",
+    ["한국 노래야?", "남자가 불렀어?", "댄스곡이야?"],
+    ["솔로 가수야?", "2020년 이후 곡이야?", "발라드야?"],
+    ["아이돌 그룹이야?", "OST야?", "영어 노래야?"],
   ],
 };
 
-function pickRandomQuestions(category: string, count: number): string[] {
-  const pool = GENERIC_QUESTIONS[category] || GENERIC_QUESTIONS["유명인"];
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
+function getSuggestedSet(category: string, index: number): string[] {
+  const sets = SUGGESTED_SETS[category] || SUGGESTED_SETS["유명인"];
+  if (index >= sets.length) return [];
+  return sets[index];
 }
 
 function getFakeAverage(answer: string): number {
@@ -282,10 +267,7 @@ function GameContent() {
             {
               role: "bongshin" as const,
               content: shouldForceAiReveal ? AI_REVEAL_PROMPT : data.message,
-              suggestedQuestions:
-                mode === "user-guesses"
-                  ? pickRandomQuestions(category, 3)
-                  : data.suggestedQuestions || undefined,
+              suggestedQuestions: data.suggestedQuestions || undefined,
               isGuess: responseType === "challenge",
               responseType: shouldForceAiReveal ? "result" : responseType,
             },
@@ -368,7 +350,7 @@ function GameContent() {
     if (fromSuggested) {
       const newCount = suggestedUsedCount + 1;
       setSuggestedUsedCount(newCount);
-      if (newCount >= 2 && !showedHintEnd) {
+      if (newCount >= 3 && !showedHintEnd) {
         showHintAfterResponse.current = true;
       }
     }
@@ -792,10 +774,11 @@ function GameContent() {
                   {msg.suggestedQuestions &&
                     mode === "user-guesses" &&
                     !gameOver &&
-                    suggestedUsedCount < 2 &&
-                    i === messages.length - 1 && (
+                    suggestedUsedCount < 3 &&
+                    i === messages.length - 1 &&
+                    getSuggestedSet(category, suggestedUsedCount).length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
-                        {msg.suggestedQuestions.map((q, j) => (
+                        {getSuggestedSet(category, suggestedUsedCount).map((q, j) => (
                           <button
                             key={j}
                             onClick={() => handleUserResponse(q, true)}
