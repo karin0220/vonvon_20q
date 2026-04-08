@@ -15,6 +15,7 @@ export interface ChatRequest {
   category: string;
   messages: { role: "user" | "model"; content: string; responseType?: BongshinResponseType }[];
   fixedAnswer?: string;
+  promptOverride?: string;
 }
 
 export interface ChatResponse {

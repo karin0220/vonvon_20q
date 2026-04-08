@@ -284,7 +284,7 @@ function sanitizeResponse(
 export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
-    const { mode, category, messages, fixedAnswer } = body;
+    const { mode, category, messages, fixedAnswer, promptOverride } = body;
 
     // ai-guesses 모드: 초반 3턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
     if (mode === "ai-guesses") {
@@ -295,7 +295,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const systemPrompt = getSystemPrompt(mode, category, fixedAnswer);
+    const systemPrompt = getSystemPrompt(mode, category, fixedAnswer, promptOverride);
 
     const contents = messages.map((m) => ({
       role: m.role,

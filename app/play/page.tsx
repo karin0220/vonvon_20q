@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { BongshinResponseType, ChatMessage, ChatResponse, GameMode } from "@/lib/types";
+import { getDefaultPromptTemplate, getSystemPrompt } from "@/lib/prompts";
 
 // 카테고리별 범용 질문 풀 — 힌트가 아닌 일반적인 스무고개 질문
 const GENERIC_QUESTIONS: Record<string, string[]> = {
@@ -74,12 +75,35 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
 
 const AI_REVEAL_PROMPT =
   "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
+const PROMPT_OVERRIDE_STORAGE_KEY = "vonvon-prompt-overrides-v1";
+
+type PromptOverrideMap = Partial<Record<GameMode, string>>;
 
 function resolveResponseType(data: ChatResponse, mode: GameMode): BongshinResponseType {
   if (data.responseType) return data.responseType;
   // user-guesses 모드에서는 challenge가 없음 — isGuess는 정답 확인이므로 result
   if (mode === "user-guesses") return data.isGuess ? "result" : "question";
   return data.isGuess ? "challenge" : "question";
+}
+
+function getStoredPromptOverrides(): PromptOverrideMap {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(PROMPT_OVERRIDE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as PromptOverrideMap;
+    return parsed ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function persistPromptOverrides(overrides: PromptOverrideMap) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    PROMPT_OVERRIDE_STORAGE_KEY,
+    JSON.stringify(overrides)
+  );
 }
 
 function GameContent() {
@@ -109,10 +133,20 @@ function GameContent() {
   const [revealInput, setRevealInput] = useState("");
   const [showReveal, setShowReveal] = useState(false);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
+  const [showPromptAdmin, setShowPromptAdmin] = useState(false);
+  const [promptEditorMode, setPromptEditorMode] = useState<GameMode>("ai-guesses");
+  const [promptOverrides, setPromptOverrides] = useState<PromptOverrideMap>({});
+  const [promptConfigReady, setPromptConfigReady] = useState(false);
+  const [promptDrafts, setPromptDrafts] = useState<Record<GameMode, string>>({
+    "ai-guesses": getDefaultPromptTemplate("ai-guesses"),
+    "user-guesses": getDefaultPromptTemplate("user-guesses"),
+  });
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const turnCountRef = useRef(0);
+  const orbTapCountRef = useRef(0);
+  const orbTapTimerRef = useRef<number | null>(null);
 
   // 인트로 → 페이드아웃 → 게임 시작
   useEffect(() => {
@@ -120,6 +154,22 @@ function GameContent() {
     const hideTimer = setTimeout(() => setShowIntro(false), 2600);
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
   }, []);
+
+  useEffect(() => {
+    const stored = getStoredPromptOverrides();
+    setPromptOverrides(stored);
+    setPromptDrafts({
+      "ai-guesses":
+        stored["ai-guesses"] || getDefaultPromptTemplate("ai-guesses"),
+      "user-guesses":
+        stored["user-guesses"] || getDefaultPromptTemplate("user-guesses"),
+    });
+    setPromptConfigReady(true);
+  }, []);
+
+  useEffect(() => {
+    setPromptEditorMode(mode);
+  }, [mode]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = chatContainerRef.current;
@@ -155,6 +205,14 @@ function GameContent() {
     return () => viewport.removeEventListener("resize", handleResize);
   }, [scrollToBottom]);
 
+  useEffect(() => {
+    return () => {
+      if (orbTapTimerRef.current) {
+        window.clearTimeout(orbTapTimerRef.current);
+      }
+    };
+  }, []);
+
   const showHintAfterResponse = useRef(false);
 
   const sendToAPI = useCallback(
@@ -182,6 +240,7 @@ function GameContent() {
             category,
             messages: newHistory,
             fixedAnswer,
+            promptOverride: promptOverrides[mode],
           }),
         });
 
@@ -267,10 +326,11 @@ function GameContent() {
         setLoading(false);
       }
     },
-    [mode, category, fixedAnswer]
+    [mode, category, fixedAnswer, promptOverrides]
   );
 
   useEffect(() => {
+    if (!promptConfigReady) return;
     if (initialized.current) return;
     initialized.current = true;
 
@@ -290,7 +350,7 @@ function GameContent() {
     return () => {
       active = false;
     };
-  }, [mode, category, sendToAPI]);
+  }, [mode, category, sendToAPI, promptConfigReady]);
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
     if (bootstrapping || loading || gameOver || awaitingGuessConfirmation || turnCountRef.current >= 20) return;
@@ -401,8 +461,58 @@ function GameContent() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleOrbTap() {
+    orbTapCountRef.current += 1;
+    if (orbTapTimerRef.current) {
+      window.clearTimeout(orbTapTimerRef.current);
+    }
+    if (orbTapCountRef.current >= 10) {
+      orbTapCountRef.current = 0;
+      setPromptEditorMode(mode);
+      setShowPromptAdmin(true);
+      return;
+    }
+    orbTapTimerRef.current = window.setTimeout(() => {
+      orbTapCountRef.current = 0;
+    }, 2200);
+  }
+
+  function handlePromptDraftChange(nextValue: string) {
+    setPromptDrafts((prev) => ({
+      ...prev,
+      [promptEditorMode]: nextValue,
+    }));
+  }
+
+  function handleSavePromptTemplate() {
+    const nextOverrides: PromptOverrideMap = {
+      ...promptOverrides,
+      [promptEditorMode]: promptDrafts[promptEditorMode],
+    };
+    setPromptOverrides(nextOverrides);
+    persistPromptOverrides(nextOverrides);
+  }
+
+  function handleResetPromptTemplate() {
+    const nextOverrides: PromptOverrideMap = { ...promptOverrides };
+    delete nextOverrides[promptEditorMode];
+    setPromptOverrides(nextOverrides);
+    persistPromptOverrides(nextOverrides);
+    setPromptDrafts((prev) => ({
+      ...prev,
+      [promptEditorMode]: getDefaultPromptTemplate(promptEditorMode),
+    }));
+  }
+
   const avgTurns = finalAnswer ? getFakeAverage(finalAnswer) : null;
   const hasChatActivity = messages.length > 0 || loading;
+  const activePromptTemplate = promptDrafts[promptEditorMode];
+  const activePromptPreview = getSystemPrompt(
+    promptEditorMode,
+    category,
+    fixedAnswer,
+    activePromptTemplate
+  );
 
   return (
     <div className="flex flex-col w-full h-dvh relative overflow-hidden">
@@ -443,8 +553,99 @@ function GameContent() {
           <span className="text-xs text-text-dim">{category}</span>
           <span className="text-xs text-mystic ml-2">{turnCount}/20</span>
         </div>
-        <div className="text-lg">🔮</div>
+        <button
+          type="button"
+          onClick={handleOrbTap}
+          className="text-lg select-none"
+          aria-label="봉신의 유리구슬"
+        >
+          🔮
+        </button>
       </header>
+
+      {showPromptAdmin && (
+        <div className="absolute inset-0 z-40 bg-black/70 px-4 py-6 backdrop-blur-sm">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-text-bright">숨김 프롬프트 관리자</p>
+                <p className="text-xs text-text-dim">모드별 템플릿을 수정하고 즉시 저장할 수 있다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPromptAdmin(false)}
+                className="rounded-full border border-border px-3 py-1.5 text-xs text-text-dim hover:border-mystic/50 hover:text-text"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+              {(["ai-guesses", "user-guesses"] as GameMode[]).map((editorMode) => (
+                <button
+                  key={editorMode}
+                  type="button"
+                  onClick={() => setPromptEditorMode(editorMode)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    promptEditorMode === editorMode
+                      ? "bg-mystic text-black"
+                      : "border border-border text-text-dim hover:border-mystic/50 hover:text-text"
+                  }`}
+                >
+                  {editorMode}
+                </button>
+              ))}
+              <div className="ml-auto flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetPromptTemplate}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-text-dim hover:border-mystic/50 hover:text-text"
+                >
+                  기본값 복원
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePromptTemplate}
+                  className="rounded-full bg-mystic px-3 py-1.5 text-xs font-semibold text-black hover:bg-mystic-light"
+                >
+                  저장
+                </button>
+              </div>
+            </div>
+
+            <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="flex min-h-0 flex-col border-b border-border lg:border-b-0 lg:border-r">
+                <div className="px-5 py-3">
+                  <p className="text-xs text-text-dim">
+                    사용 가능한 치환값: <code>{"{{category}}"}</code>, <code>{"{{hint}}"}</code>, <code>{"{{answerInstruction}}"}</code>
+                  </p>
+                </div>
+                <div className="min-h-0 flex-1 px-5 pb-5">
+                  <textarea
+                    value={activePromptTemplate}
+                    onChange={(e) => handlePromptDraftChange(e.target.value)}
+                    className="h-full min-h-[280px] w-full resize-none rounded-2xl border border-border bg-bg px-4 py-4 text-xs leading-6 text-text outline-none focus:border-mystic/50"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+
+              <div className="flex min-h-0 flex-col">
+                <div className="border-b border-border px-5 py-3">
+                  <p className="text-xs text-text-dim">
+                    현재 미리보기 기준: <span className="text-text">{promptEditorMode}</span> / <span className="text-text">{category}</span>
+                  </p>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                  <pre className="whitespace-pre-wrap break-words rounded-2xl border border-border bg-bg px-4 py-4 text-[11px] leading-6 text-text">
+                    {activePromptPreview}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 채팅 영역 — 메시지가 하단부터 쌓임 (카톡 방식) */}
       <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col relative z-10">

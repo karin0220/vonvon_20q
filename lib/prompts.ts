@@ -9,17 +9,10 @@ const CATEGORY_HINTS: Record<string, string> = {
   "전체": "유명인, 캐릭터, 영화, 드라마, 노래 등 모든 카테고리",
 };
 
-function getCategoryHint(category: string): string {
-  return CATEGORY_HINTS[category] || category;
-}
-
-export function getSystemPrompt(mode: GameMode, category: string, fixedAnswer?: string): string {
-  const hint = getCategoryHint(category);
-
-  if (mode === "ai-guesses") {
-    return `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
+const DEFAULT_PROMPT_TEMPLATES: Record<GameMode, string> = {
+  "ai-guesses": `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
 유리구슬로 상대의 마음을 읽는 능력이 있어.
-유저가 "${category}" 카테고리에서 하나를 떠올렸어. (범위: ${hint})
+유저가 "{{category}}" 카테고리에서 하나를 떠올렸어. (범위: {{hint}})
 20번의 예/아니오 질문으로 그걸 맞춰야 해.
 
 ★ 핵심 전략 (아키네이터 방식 — 반드시 따라라):
@@ -117,19 +110,13 @@ export function getSystemPrompt(mode: GameMode, category: string, fixedAnswer?: 
 candidateBucket이 "2-9" 또는 "1"이 아니면 도전하지 마라. (단, 18턴 이후에는 이 규칙 무시)
 shouldGuessNow가 false이면 반드시 question이어야 한다. (단, 19턴 이후에는 반드시 challenge)
 18턴 이후에는 후보가 많더라도 반드시 가장 유력한 후보로 도전해라. 절대 포기하지 마.
-20턴이 지나면 isGameOver: true로 보내고 마지막 추측을 해.`;
-  }
-
-  const answerInstruction = fixedAnswer
-    ? `- 봉신이 떠올린 정답은 반드시 "${fixedAnswer}"이다. 절대 다른 것을 고르지 마.`
-    : `- 게임 시작 시 "${category}" 카테고리에서 하나를 골라 (유명하고 재미있는 걸로)`;
-
-  return `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
-유리구슬로 무언가를 점쳐서 "${category}" 카테고리에서 하나를 떠올렸어. (범위: ${hint})
+20턴이 지나면 isGameOver: true로 보내고 마지막 추측을 해.`,
+  "user-guesses": `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
+유리구슬로 무언가를 점쳐서 "{{category}}" 카테고리에서 하나를 떠올렸어. (범위: {{hint}})
 유저가 질문해서 그걸 맞춰야 하는 게임이야.
 
 규칙:
-${answerInstruction}
+{{answerInstruction}}
 - 유저의 질문에 "그렇지", "아니야", "글쎄... 반은 맞고 반은 틀리다" 같은 식으로 캐릭터성 있게 답해
 - 매 턴마다 유저가 물어볼 만한 추천 질문 3~4개를 suggestedQuestions로 제공해
 - 유저가 정답을 말하면 맞았는지 알려줘. 정답 판정은 넓게 해라: 약칭, 별명, 동의어, 부분 명칭도 같은 대상을 가리키면 정답으로 인정해. 예) 정답이 "이순신 장군"이면 "이순신", "충무공"도 정답. "에스프레소 머신"이면 "커피 머신", "커피 메이커"도 정답. 핵심은 유저가 같은 대상을 떠올렸느냐이지, 정확한 명칭 일치가 아니다.
@@ -162,5 +149,43 @@ ${answerInstruction}
 
 절대 규칙: message 안에서 정답을 직접 말하거나 힌트로 정답 자체를 노출하면 안 된다. 답답해하거나 도발하는 건 OK지만, 정답 단어를 message에 넣는 건 금지. (guess 필드는 별개)
 
-첫 메시지에서는 고른 답을 절대 밝히지 말고 "봉신이 하나 떠올렸다... 맞춰봐" 식으로 시작해.`;
+첫 메시지에서는 고른 답을 절대 밝히지 말고 "봉신이 하나 떠올렸다... 맞춰봐" 식으로 시작해.`,
+};
+
+function getCategoryHint(category: string): string {
+  return CATEGORY_HINTS[category] || category;
+}
+
+function fillPromptTemplate(
+  template: string,
+  values: Record<string, string>
+): string {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.split(`{{${key}}}`).join(value),
+    template
+  );
+}
+
+export function getDefaultPromptTemplate(mode: GameMode): string {
+  return DEFAULT_PROMPT_TEMPLATES[mode];
+}
+
+export function getSystemPrompt(
+  mode: GameMode,
+  category: string,
+  fixedAnswer?: string,
+  overrideTemplate?: string
+): string {
+  const hint = getCategoryHint(category);
+  const answerInstruction = fixedAnswer
+    ? `- 봉신이 떠올린 정답은 반드시 "${fixedAnswer}"이다. 절대 다른 것을 고르지 마.`
+    : `- 게임 시작 시 "${category}" 카테고리에서 하나를 골라 (유명하고 재미있는 걸로)`;
+
+  const template = overrideTemplate || getDefaultPromptTemplate(mode);
+
+  return fillPromptTemplate(template, {
+    category,
+    hint,
+    answerInstruction,
+  });
 }
