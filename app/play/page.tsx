@@ -675,7 +675,7 @@ function GameContent() {
               <div className="flex min-h-0 flex-[1.1] flex-col border-b border-border">
                 <div className="px-5 py-3">
                   <p className="text-xs text-text-dim">
-                    사용 가능한 치환값: <code>{"{{category}}"}</code>, <code>{"{{hint}}"}</code>, <code>{"{{answerInstruction}}"}</code>
+                    치환값: <code>{"{{category}}"}</code>, <code>{"{{hint}}"}</code>, <code>{"{{answerInstruction}}"}</code>
                   </p>
                 </div>
                 <div className="min-h-0 flex-1 px-5 pb-5">
@@ -694,8 +694,8 @@ function GameContent() {
                     현재 미리보기 기준: <span className="text-text">{promptEditorMode}</span> / <span className="text-text">{category}</span>
                   </p>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                  <pre className="whitespace-pre-wrap break-words rounded-2xl border border-border bg-bg px-4 py-4 text-[11px] leading-6 text-text">
+                <div className="min-h-0 flex-1 overflow-hidden px-5 py-4">
+                  <pre className="h-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-border bg-bg px-4 py-4 text-[11px] leading-6 text-text">
                     {activePromptPreview}
                   </pre>
                 </div>
