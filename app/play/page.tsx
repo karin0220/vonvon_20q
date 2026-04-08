@@ -133,16 +133,20 @@ function GameContent() {
   const [revealInput, setRevealInput] = useState("");
   const [showReveal, setShowReveal] = useState(false);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
+  const [showPromptGate, setShowPromptGate] = useState(false);
   const [showPromptAdmin, setShowPromptAdmin] = useState(false);
   const [promptEditorMode, setPromptEditorMode] = useState<GameMode>("ai-guesses");
   const [promptOverrides, setPromptOverrides] = useState<PromptOverrideMap>({});
   const [promptConfigReady, setPromptConfigReady] = useState(false);
+  const [promptGateValue, setPromptGateValue] = useState("");
+  const [promptGateError, setPromptGateError] = useState(false);
   const [promptDrafts, setPromptDrafts] = useState<Record<GameMode, string>>({
     "ai-guesses": getDefaultPromptTemplate("ai-guesses"),
     "user-guesses": getDefaultPromptTemplate("user-guesses"),
   });
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const promptGateInputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const turnCountRef = useRef(0);
   const orbTapCountRef = useRef(0);
@@ -212,6 +216,13 @@ function GameContent() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!showPromptGate) return;
+    requestAnimationFrame(() => {
+      promptGateInputRef.current?.focus();
+    });
+  }, [showPromptGate]);
 
   const showHintAfterResponse = useRef(false);
 
@@ -469,12 +480,25 @@ function GameContent() {
     if (orbTapCountRef.current >= 10) {
       orbTapCountRef.current = 0;
       setPromptEditorMode(mode);
-      setShowPromptAdmin(true);
+      setPromptGateValue("");
+      setPromptGateError(false);
+      setShowPromptGate(true);
       return;
     }
     orbTapTimerRef.current = window.setTimeout(() => {
       orbTapCountRef.current = 0;
     }, 2200);
+  }
+
+  function handlePromptGateSubmit() {
+    if (promptGateValue.trim() !== "봉신이간다") {
+      setPromptGateError(true);
+      return;
+    }
+    setPromptGateError(false);
+    setPromptGateValue("");
+    setShowPromptGate(false);
+    setShowPromptAdmin(true);
   }
 
   function handlePromptDraftChange(nextValue: string) {
@@ -563,9 +587,61 @@ function GameContent() {
         </button>
       </header>
 
-      {showPromptAdmin && (
+      {showPromptGate && (
         <div className="absolute inset-0 z-40 bg-black/70 px-4 py-6 backdrop-blur-sm">
-          <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-bg-card shadow-2xl">
+          <div className="mx-auto flex h-full max-h-[calc(100dvh-3rem)] w-full max-w-md items-center justify-center">
+            <div className="w-full rounded-3xl border border-border bg-bg-card px-5 py-5 shadow-2xl">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-text-bright">관리자 인증</p>
+                <p className="text-xs text-text-dim">암호를 입력하면 숨김 프롬프트 관리자가 열린다.</p>
+              </div>
+              <div className="mt-4 space-y-3">
+                <input
+                  ref={promptGateInputRef}
+                  type="password"
+                  value={promptGateValue}
+                  onChange={(e) => {
+                    setPromptGateValue(e.target.value);
+                    if (promptGateError) setPromptGateError(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handlePromptGateSubmit();
+                  }}
+                  placeholder="암호 입력"
+                  className="w-full rounded-2xl border border-border bg-bg px-4 py-3 text-sm text-text outline-none focus:border-mystic/50"
+                />
+                {promptGateError && (
+                  <p className="text-xs text-red-300">암호가 맞지 않는다.</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPromptGate(false);
+                      setPromptGateValue("");
+                      setPromptGateError(false);
+                    }}
+                    className="flex-1 rounded-2xl border border-border px-4 py-3 text-sm text-text-dim hover:border-mystic/50 hover:text-text"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePromptGateSubmit}
+                    className="flex-1 rounded-2xl bg-mystic px-4 py-3 text-sm font-semibold text-black hover:bg-mystic-light"
+                  >
+                    확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPromptAdmin && (
+        <div className="absolute inset-0 z-40 bg-black/70 px-3 py-3 backdrop-blur-sm sm:px-4 sm:py-4">
+          <div className="mx-auto flex h-full max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-bg-card shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <p className="text-sm font-semibold text-text-bright">숨김 프롬프트 관리자</p>
@@ -613,8 +689,8 @@ function GameContent() {
               </div>
             </div>
 
-            <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="flex min-h-0 flex-col border-b border-border lg:border-b-0 lg:border-r">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="flex min-h-0 flex-[1.1] flex-col border-b border-border">
                 <div className="px-5 py-3">
                   <p className="text-xs text-text-dim">
                     사용 가능한 치환값: <code>{"{{category}}"}</code>, <code>{"{{hint}}"}</code>, <code>{"{{answerInstruction}}"}</code>
@@ -630,7 +706,7 @@ function GameContent() {
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-col">
+              <div className="flex min-h-0 flex-[0.9] flex-col">
                 <div className="border-b border-border px-5 py-3">
                   <p className="text-xs text-text-dim">
                     현재 미리보기 기준: <span className="text-text">{promptEditorMode}</span> / <span className="text-text">{category}</span>
