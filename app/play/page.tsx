@@ -33,6 +33,11 @@ const SUGGESTED_SETS: Record<string, string[][]> = {
     ["솔로 가수야?", "2020년 이후 곡이야?", "발라드야?"],
     ["아이돌 그룹이야?", "OST야?", "영어 노래야?"],
   ],
+  "전체": [
+    ["사람이야?", "한국 거야?", "2010년 이후에 나온 거야?"],
+    ["영상 콘텐츠야?", "실존 인물이야?", "지금도 인기 있어?"],
+    ["노래야?", "남자야?", "작품(영화/드라마/애니)이야?"],
+  ],
 };
 
 function getSuggestedSet(category: string, index: number): string[] {
@@ -53,6 +58,28 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
 const AI_REVEAL_PROMPT =
   "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
 const PROMPT_OVERRIDE_STORAGE_KEY = "vonvon-prompt-overrides-v1";
+const ADMIN_SETTINGS_STORAGE_KEY = "vonvon-admin-settings-v1";
+
+interface AdminSettings {
+  model: ModelId | "";
+  thinking: ThinkingLevel | "";
+}
+
+function getStoredAdminSettings(): AdminSettings {
+  if (typeof window === "undefined") return { model: "", thinking: "" };
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SETTINGS_STORAGE_KEY);
+    if (!raw) return { model: "", thinking: "" };
+    return JSON.parse(raw) as AdminSettings;
+  } catch {
+    return { model: "", thinking: "" };
+  }
+}
+
+function persistAdminSettings(settings: AdminSettings) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ADMIN_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+}
 
 type PromptOverrideMap = Partial<Record<GameMode, string>>;
 type SessionOutcome = "solved" | "failed" | "ai_correct" | "revealed";
@@ -126,6 +153,13 @@ function GameContent() {
   });
   const [adminModel, setAdminModel] = useState<ModelId | "">(""); // "" = 기본값 사용
   const [adminThinking, setAdminThinking] = useState<ThinkingLevel | "">(""); // "" = 기본값 사용
+
+  // 어드민 설정 localStorage 복원
+  useEffect(() => {
+    const stored = getStoredAdminSettings();
+    setAdminModel(stored.model);
+    setAdminThinking(stored.thinking);
+  }, []);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const promptGateInputRef = useRef<HTMLInputElement>(null);
@@ -747,7 +781,11 @@ function GameContent() {
               <span className="text-[10px] text-text-dim">모델</span>
               <select
                 value={adminModel}
-                onChange={(e) => setAdminModel(e.target.value as ModelId | "")}
+                onChange={(e) => {
+                  const v = e.target.value as ModelId | "";
+                  setAdminModel(v);
+                  persistAdminSettings({ model: v, thinking: adminThinking });
+                }}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
                 <option value="">기본값 (gemini-3.1-flash-lite-preview)</option>
@@ -758,7 +796,11 @@ function GameContent() {
               <span className="text-[10px] text-text-dim">Thinking</span>
               <select
                 value={adminThinking}
-                onChange={(e) => setAdminThinking(e.target.value as ThinkingLevel | "")}
+                onChange={(e) => {
+                  const v = e.target.value as ThinkingLevel | "";
+                  setAdminThinking(v);
+                  persistAdminSettings({ model: adminModel, thinking: v });
+                }}
                 className="w-24 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
                 <option value="">기본값</option>

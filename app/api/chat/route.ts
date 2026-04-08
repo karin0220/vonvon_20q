@@ -1,5 +1,5 @@
 import { getSystemPrompt } from "@/lib/prompts";
-import { ChatRequest, ChatResponse, ModelId } from "@/lib/types";
+import { ChatRequest, ChatResponse, ModelId, AVAILABLE_MODELS, THINKING_LEVELS } from "@/lib/types";
 import { getKnowledgeContext } from "@/lib/supabase";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
@@ -280,52 +280,52 @@ const OPENING_POOL: Record<string, CategoryOpenings> = {
   "전체": [
     {
       variants: [
-        "흠... 봉신의 유리구슬에 뭔가가 비친다. 네가 떠올린 것은 실존 인물이냐?",
-        "오호... 구슬이 형체를 잡는다. 그것은 실제로 존재하는 사람이냐?",
-        "봉신이 기운을 읽는다... 네가 생각한 건 실존 인물이냐?",
-        "자... 구슬에 뭔가가 비친다. 그것은 살아있는, 혹은 살았던 실제 인물이냐?",
-      ],
-      axis: "entity_type",
-      bucket: "1000+",
-    },
-    {
-      variants: [
-        "좋다. 그것은 사람이냐? 사람이 아닌 캐릭터나 작품이냐?",
-        "됐어. 적어도 사람이긴 하냐? 인물이냐?",
-        "알겠다. 그게 사람인지부터 확인하마. 사람이냐?",
-        "흥... 그것이 사람인지 아닌지, 그것부터 말해봐. 인물이냐?",
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 네가 떠올린 것은 사람이냐?",
+        "오호... 구슬이 형체를 잡는다. 그것은 사람이냐, 아니면 작품이나 캐릭터냐?",
+        "봉신이 기운을 읽는다... 네가 생각한 건 사람이냐?",
+        "자... 구슬에 뭔가가 비친다. 인물이냐, 아니면 다른 무언가냐?",
       ],
       axis: "is_person",
       bucket: "1000+",
     },
     {
       variants: [
-        "크흠... 그것은 영상 콘텐츠냐? 영화나 드라마 같은?",
-        "봉신의 구슬이 묻는다. 그건 눈으로 보는 영상물이냐?",
-        "오호... 그것은 영화나 드라마처럼 화면으로 보는 것이냐?",
-        "그렇다면... 그것은 영상 작품이냐? 영화, 드라마 계열이냐?",
+        "좋다. 그것은 한국과 관련된 것이냐?",
+        "됐어. 한국에서 나온 것이냐? 한국산이냐?",
+        "알겠다. 그게 한국 것인지 확인하마. 한국이냐?",
+        "흥... 그것의 출처가 한국이냐?",
+      ],
+      axis: "country",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그것은 2010년 이후에 세상에 나온 것이냐?",
+        "봉신의 구슬이 시간을 재본다. 2010년 이후에 등장한 것이냐?",
+        "오호... 비교적 최근 것이냐? 2010년 이후냐?",
+        "그렇다면... 그것은 최근 15년 안에 나온 것이냐?",
+      ],
+      axis: "era",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그것은 영상 콘텐츠냐? 영화나 드라마 같은?",
+        "흠... 그건 눈으로 보는 영상물이냐?",
+        "봉신이 묻는다. 그것은 화면으로 보는 것이냐? 영화, 드라마 계열이냐?",
+        "구슬에 화면이 비친다... 그것은 영상 작품이냐?",
       ],
       axis: "media_type",
       bucket: "100-999",
     },
     {
       variants: [
-        "자... 그것은 한국에서 만들어진 것이냐?",
-        "흠... 한국산이냐? 한국 출신이냐?",
-        "봉신이 출처를 더듬는다... 한국과 관련된 것이냐?",
-        "구슬이 지도를 비춘다. 그것의 출처가 한국이냐?",
+        "흥미롭군. 그것은 지금도 활동 중이거나 인기 있는 것이냐?",
+        "오호... 그것은 현재도 사람들 사이에서 화제가 되는 것이냐?",
+        "봉신의 구슬이 현재를 비춘다. 지금도 활발히 활동하거나 인기 있는 것이냐?",
+        "자... 그것은 요즘에도 많이 언급되는 것이냐?",
       ],
-      axis: "country",
-      bucket: "100-999",
-    },
-    {
-      variants: [
-        "흥미롭군. 그것은 2010년 이후에 세상에 나온 것이냐?",
-        "오호... 비교적 최근 것이냐? 2010년 이후냐?",
-        "봉신의 구슬이 시간을 재본다. 2010년 이후에 등장한 것이냐?",
-        "자... 그것은 최근 10여 년 안에 나온 것이냐? 2010년 이후냐?",
-      ],
-      axis: "era",
+      axis: "current_relevance",
       bucket: "10-99",
     },
   ],
@@ -688,8 +688,10 @@ export async function POST(request: Request) {
     const body: ChatRequest = await request.json();
     const { mode, category, messages, fixedAnswer, promptOverride, modelOverride, thinkingOverride } = body;
 
-    const activeModel = modelOverride || DEFAULT_MODEL;
-    const activeThinking = thinkingOverride || getThinkingLevel(mode);
+    const activeModel = (modelOverride && (AVAILABLE_MODELS as readonly string[]).includes(modelOverride))
+      ? modelOverride : DEFAULT_MODEL;
+    const activeThinking = (thinkingOverride && (THINKING_LEVELS as readonly string[]).includes(thinkingOverride))
+      ? thinkingOverride : getThinkingLevel(mode);
 
     // ai-guesses 모드: 초반 5턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
     if (mode === "ai-guesses") {
