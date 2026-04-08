@@ -10,12 +10,25 @@ export interface ChatMessage {
   responseType?: BongshinResponseType;
 }
 
+export const AVAILABLE_MODELS = [
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash-lite",
+] as const;
+
+export const THINKING_LEVELS = ["none", "low", "medium", "high"] as const;
+
+export type ModelId = (typeof AVAILABLE_MODELS)[number];
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+
 export interface ChatRequest {
   mode: GameMode;
   category: string;
   messages: { role: "user" | "model"; content: string; responseType?: BongshinResponseType }[];
   fixedAnswer?: string;
   promptOverride?: string;
+  modelOverride?: ModelId;
+  thinkingOverride?: ThinkingLevel;
 }
 
 export interface ChatResponse {

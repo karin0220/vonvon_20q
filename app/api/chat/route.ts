@@ -1,62 +1,343 @@
 import { getSystemPrompt } from "@/lib/prompts";
-import { ChatRequest, ChatResponse } from "@/lib/types";
+import { ChatRequest, ChatResponse, ModelId } from "@/lib/types";
 import { getKnowledgeContext } from "@/lib/supabase";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
-const MODEL = "gemini-3.1-flash-lite-preview";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+const DEFAULT_MODEL: ModelId = "gemini-3.1-flash-lite-preview";
 const GEMINI_TIMEOUT_MS = 15000;
+
+function getApiUrl(model: ModelId) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+}
 const TRANSCRIPT_TEXT_LIMIT = 72;
 
-// --- 초반 3턴 하드코딩 오프닝 질문 ---
-const OPENING_QUESTIONS: Record<string, { messages: string[]; axes: string[] }> = {
-  "유명인": {
-    messages: [
-      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 인물은 한국인이냐?",
-      "좋다. 그 인물은 남자냐?",
-      "크흠... 그 인물은 연예인이냐?",
-    ],
-    axes: ["country", "gender", "occupation"],
-  },
-  "캐릭터": {
-    messages: [
-      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 캐릭터는 일본 애니메이션에 나오는 존재냐?",
-      "좋다. 그 캐릭터는 남자냐?",
-      "크흠... 그 캐릭터는 주인공이냐?",
-    ],
-    axes: ["origin", "gender", "role"],
-  },
-  "영화": {
-    messages: [
-      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 영화는 한국 영화냐?",
-      "좋다. 그 영화는 액션이냐?",
-      "크흠... 그 영화는 2015년 이후에 개봉한 것이냐?",
-    ],
-    axes: ["country", "genre", "era"],
-  },
-  "드라마": {
-    messages: [
-      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 드라마는 한국 드라마냐?",
-      "좋다. 그 드라마는 로맨스냐?",
-      "크흠... 그 드라마는 2020년 이후에 방영된 것이냐?",
-    ],
-    axes: ["country", "genre", "era"],
-  },
-  "노래": {
-    messages: [
-      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 노래는 한국 노래냐?",
-      "좋다. 그 노래는 솔로 가수의 곡이냐?",
-      "크흠... 그 노래는 2020년 이후에 나온 곡이냐?",
-    ],
-    axes: ["country", "artist_type", "era"],
-  },
+// --- 초반 5턴 하드코딩 오프닝 질문 (바리에이션 풀) ---
+// 각 턴마다 여러 말투 변형 중 랜덤 선택 → 반복 플레이에도 신선함 유지
+type OpeningTurn = { variants: string[]; axis: string; bucket: string };
+type CategoryOpenings = OpeningTurn[];
+
+const OPENING_POOL: Record<string, CategoryOpenings> = {
+  "유명인": [
+    {
+      variants: [
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 인물은 한국인이냐?",
+        "오호... 유리구슬이 흔들린다. 네가 떠올린 인물, 한국 사람이냐?",
+        "봉신이 기운을 읽어본다... 그자는 한국인이냐?",
+        "자... 구슬에 형체가 잡힌다. 이 인물은 한국에서 태어난 자냐?",
+      ],
+      axis: "country",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "좋다. 그 인물은 남자냐?",
+        "됐어. 그자는 남자냐?",
+        "알겠다. 그 인물, 남성이냐?",
+        "흥... 그래서 그자가 남자란 말이냐?",
+      ],
+      axis: "gender",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그 인물은 연예인이냐?",
+        "봉신의 구슬이 묻는다. 그자가 연예계 사람이냐?",
+        "오호... 그 인물은 연예 활동을 하는 자냐?",
+        "그렇다면... 그자는 가수나 배우 같은 연예인이냐?",
+      ],
+      axis: "occupation",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그 인물은 지금도 활동하고 있는 자냐?",
+        "봉신이 시간의 흐름을 더듬는다... 그자는 현재 활동 중이냐?",
+        "흠... 그 인물은 지금도 현역이냐?",
+        "구슬에 비친 그자... 아직 활발히 활동하는 사람이냐?",
+      ],
+      axis: "active_status",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "흥미롭군. 그 인물은 30대 이하냐?",
+        "오호... 그자는 젊은 축이냐? 30대 이하냐?",
+        "봉신의 구슬이 나이를 가늠한다. 그 인물은 30대 이하냐?",
+        "자... 그 인물은 MZ세대라 할 수 있는 나이냐? 30대 이하냐?",
+      ],
+      axis: "age_range",
+      bucket: "100-999",
+    },
+  ],
+  "캐릭터": [
+    {
+      variants: [
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 캐릭터는 일본 애니메이션에 나오는 존재냐?",
+        "오호... 구슬이 떨린다. 네가 생각한 캐릭터, 일본 애니에서 온 자냐?",
+        "봉신이 기운을 읽는다... 그 캐릭터는 일본 애니메이션 출신이냐?",
+        "자... 구슬 속에 형체가 보인다. 이 캐릭터, 일본 애니에 등장하는 자냐?",
+      ],
+      axis: "origin",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "좋다. 그 캐릭터는 남자냐?",
+        "됐어. 그 캐릭터는 남성이냐?",
+        "알겠다. 그자는 남자 캐릭터냐?",
+        "흥... 그 캐릭터, 남자냐?",
+      ],
+      axis: "gender",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그 캐릭터는 주인공이냐?",
+        "봉신의 구슬이 묻는다. 그자가 작품의 주인공이냐?",
+        "오호... 그 캐릭터는 이야기의 중심인물이냐?",
+        "그렇다면... 그 캐릭터는 메인 주인공 자리에 있는 자냐?",
+      ],
+      axis: "role",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그 캐릭터가 나오는 작품은 액션이나 배틀 장르냐?",
+        "흠... 그 캐릭터의 작품에서 싸움이나 전투가 핵심이냐?",
+        "봉신이 기운을 살핀다... 그 캐릭터가 등장하는 작품, 액션물이냐?",
+        "구슬에 전투의 기운이 느껴진다. 그 캐릭터의 작품은 액션 장르냐?",
+      ],
+      axis: "genre",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "흥미롭군. 그 캐릭터가 나온 작품은 2010년 이후 작품이냐?",
+        "오호... 그 캐릭터의 작품은 비교적 최근, 2010년대 이후냐?",
+        "봉신의 구슬이 시간을 더듬는다. 2010년 이후에 나온 작품의 캐릭터냐?",
+        "자... 그 캐릭터가 등장한 작품, 2010년 이후에 공개된 것이냐?",
+      ],
+      axis: "era",
+      bucket: "10-99",
+    },
+  ],
+  "영화": [
+    {
+      variants: [
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 영화는 한국 영화냐?",
+        "오호... 구슬이 떨린다. 네가 떠올린 영화, 한국 작품이냐?",
+        "봉신이 기운을 읽는다... 그 영화는 한국에서 만든 것이냐?",
+        "자... 스크린에 뭔가 비친다. 이 영화, 한국 영화냐?",
+      ],
+      axis: "country",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "좋다. 그 영화는 액션이냐?",
+        "됐어. 그 영화 장르가 액션이냐?",
+        "알겠다. 그 영화에서 액션이 핵심이냐?",
+        "흥... 그 영화, 액션 영화냐?",
+      ],
+      axis: "genre_action",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그 영화는 2015년 이후에 개봉한 것이냐?",
+        "봉신의 구슬이 시간을 가늠한다. 2015년 이후 개봉작이냐?",
+        "오호... 비교적 최근 영화냐? 2015년 이후에 나온 것이냐?",
+        "그렇다면... 그 영화가 세상에 나온 건 2015년 이후냐?",
+      ],
+      axis: "era",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그 영화는 시리즈물이냐? 속편이 있는 영화냐?",
+        "흠... 그 영화에 2편이나 후속작이 존재하냐?",
+        "봉신이 묻는다. 그 영화는 프랜차이즈의 일부냐?",
+        "구슬에 여러 편이 비치는 듯하다... 시리즈 영화냐?",
+      ],
+      axis: "franchise",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "흥미롭군. 그 영화는 실화를 바탕으로 한 것이냐?",
+        "오호... 그 영화의 이야기가 실제 있었던 일에서 왔냐?",
+        "봉신의 구슬이 현실을 비춘다. 실화 기반 영화냐?",
+        "자... 그 영화는 실제 사건이나 인물을 다룬 것이냐?",
+      ],
+      axis: "based_on_true",
+      bucket: "10-99",
+    },
+  ],
+  "드라마": [
+    {
+      variants: [
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 드라마는 한국 드라마냐?",
+        "오호... 구슬이 떨린다. 네가 떠올린 드라마, 한국 작품이냐?",
+        "봉신이 기운을 읽는다... 그건 한국에서 만든 드라마냐?",
+        "자... 화면에 뭔가 비친다. 이 드라마, 한국 드라마냐?",
+      ],
+      axis: "country",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "좋다. 그 드라마는 로맨스냐?",
+        "됐어. 그 드라마의 핵심이 연애냐?",
+        "알겠다. 그 드라마, 로맨스 장르냐?",
+        "흥... 사랑 이야기가 중심인 드라마냐?",
+      ],
+      axis: "genre_romance",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그 드라마는 2020년 이후에 방영된 것이냐?",
+        "봉신의 구슬이 시간을 더듬는다. 2020년 이후 작품이냐?",
+        "오호... 최근 드라마냐? 2020년 이후에 나온 것이냐?",
+        "그렇다면... 그 드라마가 방영된 건 2020년 이후냐?",
+      ],
+      axis: "era",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그 드라마는 넷플릭스나 티빙 같은 OTT에서 나온 것이냐?",
+        "흠... 그 드라마는 OTT 플랫폼 오리지널이냐?",
+        "봉신이 묻는다. 그건 지상파가 아닌 OTT에서 만든 드라마냐?",
+        "구슬에 스트리밍의 기운이 보인다... OTT 드라마냐?",
+      ],
+      axis: "platform",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "흥미롭군. 그 드라마는 시즌제냐? 시즌 2 이상이 있냐?",
+        "오호... 그 드라마에 다음 시즌이 존재하냐?",
+        "봉신의 구슬이 여러 겹을 비춘다. 시즌제 드라마냐?",
+        "자... 그 드라마는 한 시즌으로 끝나지 않은 작품이냐?",
+      ],
+      axis: "multi_season",
+      bucket: "10-99",
+    },
+  ],
+  "노래": [
+    {
+      variants: [
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 노래는 한국 노래냐?",
+        "오호... 구슬에서 멜로디가 들린다. 한국어 노래냐?",
+        "봉신이 귀를 기울인다... 그 노래는 한국 곡이냐?",
+        "자... 선율이 들린다. 이 노래, 한국에서 나온 곡이냐?",
+      ],
+      axis: "country",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "좋다. 그 노래는 솔로 가수의 곡이냐?",
+        "됐어. 그 노래를 부른 건 솔로 가수냐?",
+        "알겠다. 그 노래, 그룹이 아닌 솔로 아티스트의 곡이냐?",
+        "흥... 혼자 부른 노래냐?",
+      ],
+      axis: "artist_type",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그 노래를 부른 가수는 남자냐?",
+        "봉신의 구슬이 목소리를 듣는다. 남자 가수의 노래냐?",
+        "오호... 그 노래의 가수는 남성이냐?",
+        "그렇다면... 남자가 부른 곡이냐?",
+      ],
+      axis: "artist_gender",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그 노래는 댄스곡이냐?",
+        "흠... 그 노래에 맞춰 춤을 추게 되는 곡이냐? 댄스 장르냐?",
+        "봉신이 리듬을 타본다... 댄스곡이냐?",
+        "구슬에서 비트가 느껴진다. 그 노래, 댄스 장르냐?",
+      ],
+      axis: "genre",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "흥미롭군. 그 노래는 2020년 이후에 나온 곡이냐?",
+        "오호... 최근 곡이냐? 2020년 이후 발매된 노래냐?",
+        "봉신의 구슬이 시간을 재본다. 2020년 이후 곡이냐?",
+        "자... 그 노래가 세상에 나온 건 2020년 이후냐?",
+      ],
+      axis: "era",
+      bucket: "10-99",
+    },
+  ],
+  "전체": [
+    {
+      variants: [
+        "흠... 봉신의 유리구슬에 뭔가가 비친다. 네가 떠올린 것은 실존 인물이냐?",
+        "오호... 구슬이 형체를 잡는다. 그것은 실제로 존재하는 사람이냐?",
+        "봉신이 기운을 읽는다... 네가 생각한 건 실존 인물이냐?",
+        "자... 구슬에 뭔가가 비친다. 그것은 살아있는, 혹은 살았던 실제 인물이냐?",
+      ],
+      axis: "entity_type",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "좋다. 그것은 사람이냐? 사람이 아닌 캐릭터나 작품이냐?",
+        "됐어. 적어도 사람이긴 하냐? 인물이냐?",
+        "알겠다. 그게 사람인지부터 확인하마. 사람이냐?",
+        "흥... 그것이 사람인지 아닌지, 그것부터 말해봐. 인물이냐?",
+      ],
+      axis: "is_person",
+      bucket: "1000+",
+    },
+    {
+      variants: [
+        "크흠... 그것은 영상 콘텐츠냐? 영화나 드라마 같은?",
+        "봉신의 구슬이 묻는다. 그건 눈으로 보는 영상물이냐?",
+        "오호... 그것은 영화나 드라마처럼 화면으로 보는 것이냐?",
+        "그렇다면... 그것은 영상 작품이냐? 영화, 드라마 계열이냐?",
+      ],
+      axis: "media_type",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "자... 그것은 한국에서 만들어진 것이냐?",
+        "흠... 한국산이냐? 한국 출신이냐?",
+        "봉신이 출처를 더듬는다... 한국과 관련된 것이냐?",
+        "구슬이 지도를 비춘다. 그것의 출처가 한국이냐?",
+      ],
+      axis: "country",
+      bucket: "100-999",
+    },
+    {
+      variants: [
+        "흥미롭군. 그것은 2010년 이후에 세상에 나온 것이냐?",
+        "오호... 비교적 최근 것이냐? 2010년 이후냐?",
+        "봉신의 구슬이 시간을 재본다. 2010년 이후에 등장한 것이냐?",
+        "자... 그것은 최근 10여 년 안에 나온 것이냐? 2010년 이후냐?",
+      ],
+      axis: "era",
+      bucket: "10-99",
+    },
+  ],
 };
 
 function getOpeningResponse(category: string, turnIndex: number): ChatResponse | null {
-  const data = OPENING_QUESTIONS[category];
-  if (!data || turnIndex < 0 || turnIndex >= data.messages.length) return null;
+  const turns = OPENING_POOL[category];
+  if (!turns || turnIndex < 0 || turnIndex >= turns.length) return null;
+  const turn = turns[turnIndex];
+  const message = turn.variants[Math.floor(Math.random() * turn.variants.length)];
   return {
-    message: data.messages[turnIndex],
+    message,
     responseType: "question",
     isGuess: false,
     guess: null,
@@ -64,8 +345,8 @@ function getOpeningResponse(category: string, turnIndex: number): ChatResponse |
     turnCount: turnIndex,
     isGameOver: false,
     stage: "broad",
-    questionAxis: data.axes[turnIndex],
-    candidateBucket: "1000+",
+    questionAxis: turn.axis,
+    candidateBucket: turn.bucket as ChatResponse["candidateBucket"],
     shouldGuessNow: false,
     guessReasonShort: "오프닝 고정 질문",
   };
@@ -150,8 +431,8 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-function getThinkingLevel(mode: ChatRequest["mode"]) {
-  return mode === "ai-guesses" ? "medium" : "low";
+function getThinkingLevel(_mode: ChatRequest["mode"]) {
+  return "low";
 }
 
 function getActualTurnCount(messages: ChatRequest["messages"]) {
@@ -300,41 +581,36 @@ function countPreviousChallenges(messages: ChatRequest["messages"]) {
 }
 
 function buildFallbackQuestion(category: string, turnCount: number): string {
+  // 5턴까지는 하드코딩 오프닝이 담당하므로, fallback은 6턴 이후부터 의미 있음
   switch (category) {
     case "유명인":
-      if (turnCount <= 3) return "흠... 그 인물은 한국인이냐?";
-      if (turnCount <= 6) return "좋다. 그 인물은 남자냐?";
-      if (turnCount <= 10) return "봉신의 구슬이 묻는다. 그 인물은 연예인이냐?";
-      if (turnCount <= 14) return "크흠... 그 인물은 지금 30대 이하냐?";
-      return "자... 그 인물은 TV에 자주 나오는 사람이냐?";
+      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 인물은 가수냐?";
+      if (turnCount <= 10) return "흠... 그 인물은 TV 예능에 자주 나오는 사람이냐?";
+      if (turnCount <= 14) return "크흠... 그 인물은 아이돌 출신이냐?";
+      return "자... 그 인물은 SNS 팔로워가 수백만인 자냐?";
     case "캐릭터":
-      if (turnCount <= 3) return "흠... 그 캐릭터는 일본 작품에 나오는 존재냐?";
-      if (turnCount <= 6) return "좋다. 그 캐릭터는 주인공이냐?";
-      if (turnCount <= 10) return "크흠... 그 캐릭터는 인간형 존재냐?";
-      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 캐릭터는 특수한 힘을 가졌느냐?";
-      return "자... 그 작품은 2010년 이후에 나온 것이냐?";
+      if (turnCount <= 7) return "크흠... 그 캐릭터는 인간형 존재냐?";
+      if (turnCount <= 10) return "봉신의 구슬이 묻는다. 그 캐릭터는 특수한 힘을 가졌느냐?";
+      if (turnCount <= 14) return "흠... 그 캐릭터는 학생이냐?";
+      return "자... 그 캐릭터의 작품은 애니메이션화가 됐느냐?";
     case "영화":
-      if (turnCount <= 3) return "흠... 그 영화는 한국 영화냐?";
-      if (turnCount <= 6) return "좋아. 그 영화는 액션이냐?";
-      if (turnCount <= 10) return "크흠... 그 영화는 2015년 이후에 개봉했느냐?";
-      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 영화에 속편이 있느냐?";
-      return "자... 그 영화는 실화를 바탕으로 한 것이냐?";
+      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 영화에 속편이 있느냐?";
+      if (turnCount <= 10) return "크흠... 그 영화의 장르가 코미디냐?";
+      if (turnCount <= 14) return "흠... 그 영화에 천만 관객이 들었느냐?";
+      return "자... 그 영화에 유명 배우가 주연으로 나오느냐?";
     case "드라마":
-      if (turnCount <= 3) return "흠... 그 드라마는 한국 드라마냐?";
-      if (turnCount <= 6) return "좋아. 그 드라마는 로맨스냐?";
-      if (turnCount <= 10) return "크흠... 그 드라마는 2020년 이후에 방영됐느냐?";
-      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 드라마는 넷플릭스에서 볼 수 있느냐?";
-      return "자... 그 드라마는 16부작 이상이냐?";
+      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 드라마는 16부작 이상이냐?";
+      if (turnCount <= 10) return "크흠... 그 드라마에 판타지 요소가 있느냐?";
+      if (turnCount <= 14) return "흠... 그 드라마의 주인공이 남자냐?";
+      return "자... 그 드라마는 해외에서도 유명해진 작품이냐?";
     case "노래":
-      if (turnCount <= 3) return "흠... 그 노래는 한국 노래냐?";
-      if (turnCount <= 6) return "좋아. 그 노래는 솔로 가수의 곡이냐?";
-      if (turnCount <= 10) return "크흠... 그 노래는 2020년 이후에 나온 곡이냐?";
-      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 노래는 댄스곡이냐?";
-      return "자... 그 노래는 남자가 부른 곡이냐?";
+      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 노래는 발라드냐?";
+      if (turnCount <= 10) return "크흠... 그 노래의 뮤직비디오 조회수가 1억 이상이냐?";
+      if (turnCount <= 14) return "흠... 그 노래는 드라마나 영화 OST냐?";
+      return "자... 그 노래를 부른 가수가 아이돌이냐?";
     default:
-      if (turnCount <= 3) return "흠... 그건 사람이냐?";
-      if (turnCount <= 6) return "좋다. 그건 실존하는 것이냐?";
-      if (turnCount <= 10) return "봉신의 구슬이 묻는다. 그것은 한국 것이냐?";
+      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그것은 음악과 관련이 있느냐?";
+      if (turnCount <= 10) return "크흠... 그것은 대중적으로 매우 유명한 것이냐?";
       if (turnCount <= 14) return "크흠... 그것은 2010년 이후에 나온 것이냐?";
       return "자... 그것은 사람이 만든 것이냐?";
   }
@@ -410,9 +686,12 @@ function sanitizeResponse(
 export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
-    const { mode, category, messages, fixedAnswer, promptOverride } = body;
+    const { mode, category, messages, fixedAnswer, promptOverride, modelOverride, thinkingOverride } = body;
 
-    // ai-guesses 모드: 초반 3턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
+    const activeModel = modelOverride || DEFAULT_MODEL;
+    const activeThinking = thinkingOverride || getThinkingLevel(mode);
+
+    // ai-guesses 모드: 초반 5턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
     if (mode === "ai-guesses") {
       const actualTurnCount = getActualTurnCount(messages);
       const openingResponse = getOpeningResponse(category, actualTurnCount);
@@ -438,7 +717,9 @@ export async function POST(request: Request) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
-    const res = await fetch(API_URL, {
+    const thinkingConfig = activeThinking === "none" ? {} : { thinkingConfig: { thinkingLevel: activeThinking } };
+
+    const res = await fetch(getApiUrl(activeModel), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
@@ -448,9 +729,7 @@ export async function POST(request: Request) {
         generationConfig: {
           responseMimeType: "application/json",
           responseJsonSchema: RESPONSE_SCHEMA,
-          thinkingConfig: {
-            thinkingLevel: getThinkingLevel(mode),
-          },
+          ...thinkingConfig,
         },
       }),
     }).finally(() => {

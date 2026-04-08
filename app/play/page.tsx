@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { BongshinResponseType, ChatMessage, ChatResponse, GameMode, KnowledgeStats } from "@/lib/types";
+import { BongshinResponseType, ChatMessage, ChatResponse, GameMode, KnowledgeStats, AVAILABLE_MODELS, THINKING_LEVELS, ModelId, ThinkingLevel } from "@/lib/types";
 import { getDefaultPromptTemplate, getSystemPrompt } from "@/lib/prompts";
 
 // 카테고리별 고정 질문 세트 (3세트 × 3문항) — 순서대로 노출, 겹침 없음
@@ -124,6 +124,8 @@ function GameContent() {
     "ai-guesses": getDefaultPromptTemplate("ai-guesses"),
     "user-guesses": getDefaultPromptTemplate("user-guesses"),
   });
+  const [adminModel, setAdminModel] = useState<ModelId | "">(""); // "" = 기본값 사용
+  const [adminThinking, setAdminThinking] = useState<ThinkingLevel | "">(""); // "" = 기본값 사용
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const promptGateInputRef = useRef<HTMLInputElement>(null);
@@ -298,6 +300,8 @@ function GameContent() {
             messages: newHistory,
             fixedAnswer,
             promptOverride: promptOverrides[mode],
+            ...(adminModel && { modelOverride: adminModel }),
+            ...(adminThinking && { thinkingOverride: adminThinking }),
           }),
         });
 
@@ -739,6 +743,31 @@ function GameContent() {
               </div>
             </div>
 
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2">
+              <span className="text-[10px] text-text-dim">모델</span>
+              <select
+                value={adminModel}
+                onChange={(e) => setAdminModel(e.target.value as ModelId | "")}
+                className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
+              >
+                <option value="">기본값 (gemini-3.1-flash-lite-preview)</option>
+                {AVAILABLE_MODELS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <span className="text-[10px] text-text-dim">Thinking</span>
+              <select
+                value={adminThinking}
+                onChange={(e) => setAdminThinking(e.target.value as ThinkingLevel | "")}
+                className="w-24 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
+              >
+                <option value="">기본값</option>
+                {THINKING_LEVELS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex min-h-0 flex-[1.1] flex-col border-b border-border">
                 <div className="px-5 py-3">
@@ -750,7 +779,7 @@ function GameContent() {
                   <textarea
                     value={activePromptTemplate}
                     onChange={(e) => handlePromptDraftChange(e.target.value)}
-                    className="h-full min-h-[280px] w-full resize-none rounded-2xl border border-border bg-bg px-4 py-4 text-xs leading-6 text-text outline-none focus:border-mystic/50"
+                    className="h-full min-h-[180px] w-full resize-none rounded-2xl border border-border bg-bg px-4 py-4 text-xs leading-6 text-text outline-none focus:border-mystic/50"
                     spellCheck={false}
                   />
                 </div>
