@@ -146,14 +146,14 @@ function HomeContent() {
       </div>
 
       {/* powered by vonvon */}
-      <div className="flex items-center justify-center gap-1.5 py-4 pb-6">
-        <span className="text-[11px] text-text-dim/40">powered by</span>
+      <div className="flex items-center justify-center gap-2 py-5 pb-8">
+        <span className="text-sm text-text-dim/40">powered by</span>
         <Image
           src="/vonvon-logo.png"
           alt="vonvon"
-          width={60}
-          height={16}
-          className="h-3.5 w-auto opacity-30 brightness-0 invert"
+          width={132}
+          height={35}
+          className="h-[30px] w-auto opacity-30 brightness-0 invert"
         />
       </div>
     </main>
