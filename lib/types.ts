@@ -34,10 +34,10 @@ export interface ChatResponse {
 
 export const CATEGORIES = [
   { id: "famous", label: "유명인", icon: "Sparkles" },
-  { id: "anime", label: "애니 캐릭터", icon: "ChessKing" },
-  { id: "object", label: "사물", icon: "Box" },
-  { id: "animal", label: "동물", icon: "PawPrint" },
-  { id: "movie", label: "영화/드라마", icon: "Clapperboard" },
+  { id: "character", label: "캐릭터", icon: "Wand2" },
+  { id: "movie", label: "영화", icon: "Clapperboard" },
+  { id: "drama", label: "드라마", icon: "Tv" },
+  { id: "song", label: "노래", icon: "Music" },
 ] as const;
 
 // 오늘의 주제: 날짜 기반으로 매일 다른 카테고리

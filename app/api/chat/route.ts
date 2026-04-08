@@ -6,6 +6,69 @@ const MODEL = "gemini-3.1-flash-lite-preview";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 const GEMINI_TIMEOUT_MS = 15000;
 
+// --- 초반 3턴 하드코딩 오프닝 질문 ---
+const OPENING_QUESTIONS: Record<string, { messages: string[]; axes: string[] }> = {
+  "유명인": {
+    messages: [
+      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 인물은 한국인이냐?",
+      "좋다. 그 인물은 남자냐?",
+      "크흠... 그 인물은 연예인이냐?",
+    ],
+    axes: ["country", "gender", "occupation"],
+  },
+  "캐릭터": {
+    messages: [
+      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 캐릭터는 일본 애니메이션에 나오는 존재냐?",
+      "좋다. 그 캐릭터는 남자냐?",
+      "크흠... 그 캐릭터는 주인공이냐?",
+    ],
+    axes: ["origin", "gender", "role"],
+  },
+  "영화": {
+    messages: [
+      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 영화는 한국 영화냐?",
+      "좋다. 그 영화는 액션이냐?",
+      "크흠... 그 영화는 2015년 이후에 개봉한 것이냐?",
+    ],
+    axes: ["country", "genre", "era"],
+  },
+  "드라마": {
+    messages: [
+      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 드라마는 한국 드라마냐?",
+      "좋다. 그 드라마는 로맨스냐?",
+      "크흠... 그 드라마는 2020년 이후에 방영된 것이냐?",
+    ],
+    axes: ["country", "genre", "era"],
+  },
+  "노래": {
+    messages: [
+      "흠... 봉신의 유리구슬에 뭔가가 비친다. 그 노래는 한국 노래냐?",
+      "좋다. 그 노래는 솔로 가수의 곡이냐?",
+      "크흠... 그 노래는 2020년 이후에 나온 곡이냐?",
+    ],
+    axes: ["country", "artist_type", "era"],
+  },
+};
+
+function getOpeningResponse(category: string, turnIndex: number): ChatResponse | null {
+  const data = OPENING_QUESTIONS[category];
+  if (!data || turnIndex < 0 || turnIndex >= data.messages.length) return null;
+  return {
+    message: data.messages[turnIndex],
+    responseType: "question",
+    isGuess: false,
+    guess: null,
+    suggestedQuestions: null,
+    turnCount: turnIndex,
+    isGameOver: false,
+    stage: "broad",
+    questionAxis: data.axes[turnIndex],
+    candidateBucket: "1000+",
+    shouldGuessNow: false,
+    guessReasonShort: "오프닝 고정 질문",
+  };
+}
+
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
@@ -97,44 +160,57 @@ function getActualTurnCount(messages: ChatRequest["messages"]) {
 }
 
 function hasRecentWrongGuess(messages: ChatRequest["messages"]) {
-  const recentUserMessages = messages
+  // 쿨다운 1턴으로 축소: 직전 유저 메시지만 체크
+  const lastUserMsg = messages
     .filter((message) => message.role === "user")
-    .slice(-3)
-    .map((message) => message.content);
+    .slice(-1)[0];
+  return lastUserMsg?.content.startsWith("아니, 틀렸어") ?? false;
+}
 
-  return recentUserMessages.some((content) =>
-    content.startsWith("아니, 틀렸어. 다시 시도해봐.")
-  );
+function countPreviousChallenges(messages: ChatRequest["messages"]) {
+  return messages.filter(
+    (m) => m.role === "model" && m.content.includes("봉신의 도전")
+  ).length;
 }
 
 function buildFallbackQuestion(category: string, turnCount: number): string {
-  const broadTurn = Math.min(turnCount, 6);
-
   switch (category) {
-    case "영화/드라마":
-      if (broadTurn <= 2) return "흠... 먼저 크게 나눠 보자. 그 작품은 한국 작품이냐?";
-      if (broadTurn <= 4) return "좋아. 그 작품은 드라마냐?";
-      return "크흠... 시대를 가르겠다. 그 작품은 2020년대에 나온 작품이냐?";
     case "유명인":
-      if (broadTurn <= 2) return "흠... 그 대상은 실존 인물이냐?";
-      if (broadTurn <= 4) return "좋다. 그 인물은 한국인이냐?";
-      return "봉신의 구슬이 묻는다. 그 인물은 지금도 생존해 있느냐?";
-    case "애니 캐릭터":
-      if (broadTurn <= 2) return "흠... 그 캐릭터는 일본 작품에 나오는 존재냐?";
-      if (broadTurn <= 4) return "좋다. 그 캐릭터는 주인공이냐?";
-      return "크흠... 그 캐릭터는 인간형 존재냐?";
-    case "사물":
-      if (broadTurn <= 2) return "흠... 그 사물은 전자제품이냐?";
-      if (broadTurn <= 4) return "좋다. 그건 손으로 들고 쓰는 물건이냐?";
-      return "봉신의 구슬이 말하길... 그 물건은 집 안에서 주로 쓰이느냐?";
-    case "동물":
-      if (broadTurn <= 2) return "흠... 그 동물은 포유류냐?";
-      if (broadTurn <= 4) return "좋다. 그 동물은 사람이 흔히 반려동물로 기르느냐?";
-      return "크흠... 그 동물은 성체가 사람보다 크냐?";
+      if (turnCount <= 3) return "흠... 그 인물은 한국인이냐?";
+      if (turnCount <= 6) return "좋다. 그 인물은 남자냐?";
+      if (turnCount <= 10) return "봉신의 구슬이 묻는다. 그 인물은 연예인이냐?";
+      if (turnCount <= 14) return "크흠... 그 인물은 지금 30대 이하냐?";
+      return "자... 그 인물은 TV에 자주 나오는 사람이냐?";
+    case "캐릭터":
+      if (turnCount <= 3) return "흠... 그 캐릭터는 일본 작품에 나오는 존재냐?";
+      if (turnCount <= 6) return "좋다. 그 캐릭터는 주인공이냐?";
+      if (turnCount <= 10) return "크흠... 그 캐릭터는 인간형 존재냐?";
+      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 캐릭터는 특수한 힘을 가졌느냐?";
+      return "자... 그 작품은 2010년 이후에 나온 것이냐?";
+    case "영화":
+      if (turnCount <= 3) return "흠... 그 영화는 한국 영화냐?";
+      if (turnCount <= 6) return "좋아. 그 영화는 액션이냐?";
+      if (turnCount <= 10) return "크흠... 그 영화는 2015년 이후에 개봉했느냐?";
+      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 영화에 속편이 있느냐?";
+      return "자... 그 영화는 실화를 바탕으로 한 것이냐?";
+    case "드라마":
+      if (turnCount <= 3) return "흠... 그 드라마는 한국 드라마냐?";
+      if (turnCount <= 6) return "좋아. 그 드라마는 로맨스냐?";
+      if (turnCount <= 10) return "크흠... 그 드라마는 2020년 이후에 방영됐느냐?";
+      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 드라마는 넷플릭스에서 볼 수 있느냐?";
+      return "자... 그 드라마는 16부작 이상이냐?";
+    case "노래":
+      if (turnCount <= 3) return "흠... 그 노래는 한국 노래냐?";
+      if (turnCount <= 6) return "좋아. 그 노래는 솔로 가수의 곡이냐?";
+      if (turnCount <= 10) return "크흠... 그 노래는 2020년 이후에 나온 곡이냐?";
+      if (turnCount <= 14) return "봉신의 구슬이 묻는다. 그 노래는 댄스곡이냐?";
+      return "자... 그 노래는 남자가 부른 곡이냐?";
     default:
-      if (broadTurn <= 2) return "흠... 그건 사람이냐?";
-      if (broadTurn <= 4) return "좋다. 그건 작품이냐?";
-      return "봉신의 구슬이 묻는다. 그것은 현실에 실존하느냐?";
+      if (turnCount <= 3) return "흠... 그건 사람이냐?";
+      if (turnCount <= 6) return "좋다. 그건 실존하는 것이냐?";
+      if (turnCount <= 10) return "봉신의 구슬이 묻는다. 그것은 한국 것이냐?";
+      if (turnCount <= 14) return "크흠... 그것은 2010년 이후에 나온 것이냐?";
+      return "자... 그것은 사람이 만든 것이냐?";
   }
 }
 
@@ -143,7 +219,8 @@ function sanitizeResponse(
   mode: ChatRequest["mode"],
   category: string,
   actualTurnCount: number,
-  hadRecentWrongGuess: boolean
+  hadRecentWrongGuess: boolean,
+  messages: ChatRequest["messages"]
 ): ChatResponse {
   const responseType =
     parsed.responseType ?? (parsed.isGuess ? "challenge" : parsed.isGameOver ? "result" : "question");
@@ -164,18 +241,29 @@ function sanitizeResponse(
   };
 
   if (mode === "ai-guesses") {
+    const isLateGame = actualTurnCount >= 18;
     const challengeTooEarly = actualTurnCount < 8 && responseType === "challenge";
+    // 턴 18+ 에서는 candidateBucket 체크 스킵 (마지막 기회이므로)
     const challengeWithoutEnoughCandidates =
       responseType === "challenge" &&
+      !isLateGame &&
       !["2-9", "1"].includes(base.candidateBucket ?? "");
-    const challengeDuringCooldown = hadRecentWrongGuess && responseType === "challenge";
+    // 턴 16+ 에서는 쿨다운 무시
+    const challengeDuringCooldown =
+      hadRecentWrongGuess && responseType === "challenge" && actualTurnCount < 16;
     const challengeWithoutGuess = responseType === "challenge" && !base.guess;
+    // 최대 3번까지만 challenge 허용 (턴 18+ 제외)
+    const tooManyChallenges =
+      responseType === "challenge" &&
+      !isLateGame &&
+      countPreviousChallenges(messages) >= 3;
 
     if (
       challengeTooEarly ||
       challengeWithoutEnoughCandidates ||
       challengeDuringCooldown ||
-      challengeWithoutGuess
+      challengeWithoutGuess ||
+      tooManyChallenges
     ) {
       return {
         ...base,
@@ -184,7 +272,7 @@ function sanitizeResponse(
         isGuess: false,
         guess: null,
         isGameOver: false,
-        stage: actualTurnCount <= 5 ? "broad" : "narrow",
+        stage: actualTurnCount <= 5 ? "broad" : actualTurnCount <= 12 ? "narrow" : "challenge",
         shouldGuessNow: false,
       };
     }
@@ -197,6 +285,15 @@ export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
     const { mode, category, messages, fixedAnswer } = body;
+
+    // ai-guesses 모드: 초반 3턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
+    if (mode === "ai-guesses") {
+      const actualTurnCount = getActualTurnCount(messages);
+      const openingResponse = getOpeningResponse(category, actualTurnCount);
+      if (openingResponse) {
+        return Response.json(openingResponse);
+      }
+    }
 
     const systemPrompt = getSystemPrompt(mode, category, fixedAnswer);
 
@@ -247,7 +344,8 @@ export async function POST(request: Request) {
       mode,
       category,
       actualTurnCount,
-      hasRecentWrongGuess(messages)
+      hasRecentWrongGuess(messages),
+      messages
     );
 
     return Response.json(sanitized);

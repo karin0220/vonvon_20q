@@ -4,16 +4,16 @@ import { useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { GameMode, CATEGORIES, getDailyCategory } from "@/lib/types";
-import { Sparkles, ChessKing, Box, PawPrint, Clapperboard, Flame, Globe } from "lucide-react";
+import { Sparkles, Wand2, Clapperboard, Tv, Music, Flame, Globe } from "lucide-react";
 
-const ICONS = { Sparkles, ChessKing, Box, PawPrint, Clapperboard } as const;
+const ICONS = { Sparkles, Wand2, Clapperboard, Tv, Music } as const;
 
 const RECENT_ANSWERS = [
-  "아이유", "나루토 우즈마키", "피카츄", "오징어 게임", "짱구는 못말려",
-  "손흥민", "엘사", "루피", "방탄소년단", "고양이",
-  "아이폰", "에스프레소 머신", "해리포터와 마법사의 돌", "슈퍼마리오", "이순신 장군",
-  "이웃집 토토로", "블랙핑크", "기생충", "골든 리트리버", "신라면",
-  "뽀로로", "김치찌개", "스파이더맨", "테슬라", "유재석",
+  "아이유", "나루토", "오징어 게임", "도깨비", "Butter",
+  "손흥민", "엘사", "기생충", "눈물의 여왕", "APT.",
+  "루피", "블랙핑크", "올드보이", "사랑의 불시착", "좋은 날",
+  "유재석", "짱구", "범죄도시", "시그널", "Super Shy",
+  "뉴진스", "스파이더맨", "부산행", "미생", "밤양갱",
 ];
 
 function HomeContent() {
