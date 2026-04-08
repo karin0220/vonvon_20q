@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { GameMode, CATEGORIES, getDailyCategory } from "@/lib/types";
+import { GameMode, CATEGORIES, RecentPlayItem, getDailyCategory } from "@/lib/types";
 import { Sparkles, Wand2, Clapperboard, Tv, Music, Flame, Globe } from "lucide-react";
 
 const ICONS = { Sparkles, Wand2, Clapperboard, Tv, Music } as const;
@@ -22,7 +22,36 @@ function HomeContent() {
   const initialMode = (searchParams.get("mode") as GameMode) || "user-guesses";
   const [mode, setMode] = useState<GameMode>(initialMode);
   const [starting, setStarting] = useState(false);
+  const [recentPlays, setRecentPlays] = useState<RecentPlayItem[]>([]);
   const dailyCategory = useMemo(() => getDailyCategory(), []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadFeed() {
+      try {
+        const res = await fetch("/api/feed", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { items?: RecentPlayItem[] };
+        if (active && data.items?.length) {
+          setRecentPlays(data.items);
+        }
+      } catch {
+        // Keep local fallback feed.
+      }
+    }
+
+    void loadFeed();
+    const timer = window.setInterval(loadFeed, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const marqueeItems = recentPlays.length
+    ? recentPlays.map((item) => `${item.category} · ${item.answer}`)
+    : RECENT_ANSWERS;
 
   function startGame(category: string) {
     setStarting(true);
@@ -37,7 +66,7 @@ function HomeContent() {
         <div className="marquee-track">
           {[0, 1].map((set) => (
             <span key={set} className="marquee-content">
-              {RECENT_ANSWERS.map((answer, i) => (
+              {marqueeItems.map((answer, i) => (
                 <span key={i} className="text-xs text-text-dim whitespace-nowrap">
                   <span className="text-mystic/60 text-[10px]">&#x2726;</span> {answer}
                 </span>

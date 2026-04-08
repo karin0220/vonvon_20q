@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { BongshinResponseType, ChatMessage, ChatResponse, GameMode } from "@/lib/types";
+import { BongshinResponseType, ChatMessage, ChatResponse, GameMode, KnowledgeStats } from "@/lib/types";
 import { getDefaultPromptTemplate, getSystemPrompt } from "@/lib/prompts";
 
 // 카테고리별 고정 질문 세트 (3세트 × 3문항) — 순서대로 노출, 겹침 없음
@@ -41,14 +41,6 @@ function getSuggestedSet(category: string, index: number): string[] {
   return sets[index];
 }
 
-function getFakeAverage(answer: string): number {
-  let hash = 0;
-  for (let i = 0; i < answer.length; i++) {
-    hash = (hash * 31 + answer.charCodeAt(i)) | 0;
-  }
-  return 10 + (Math.abs(hash) % 7);
-}
-
 function getTeasingMessage(userTurns: number, avgTurns: number): string {
   const diff = userTurns - avgTurns;
   if (diff <= -5) return "흠... 제법이군. 봉신도 인정하지 않을 수 없다.";
@@ -63,6 +55,7 @@ const AI_REVEAL_PROMPT =
 const PROMPT_OVERRIDE_STORAGE_KEY = "vonvon-prompt-overrides-v1";
 
 type PromptOverrideMap = Partial<Record<GameMode, string>>;
+type SessionOutcome = "solved" | "failed" | "ai_correct" | "revealed";
 
 function resolveResponseType(data: ChatResponse, mode: GameMode): BongshinResponseType {
   if (data.responseType) return data.responseType;
@@ -117,6 +110,8 @@ function GameContent() {
   const [showedHintEnd, setShowedHintEnd] = useState(false);
   const [revealInput, setRevealInput] = useState("");
   const [showReveal, setShowReveal] = useState(false);
+  const [answerStats, setAnswerStats] = useState<KnowledgeStats | null>(null);
+  const [completedOutcome, setCompletedOutcome] = useState<SessionOutcome | null>(null);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
   const [showPromptGate, setShowPromptGate] = useState(false);
   const [showPromptAdmin, setShowPromptAdmin] = useState(false);
@@ -134,6 +129,7 @@ function GameContent() {
   const promptGateInputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const turnCountRef = useRef(0);
+  const recordedSessionRef = useRef<string | null>(null);
   const orbTapCountRef = useRef(0);
   const orbTapTimerRef = useRef<number | null>(null);
 
@@ -208,6 +204,71 @@ function GameContent() {
       promptGateInputRef.current?.focus();
     });
   }, [showPromptGate]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function persistAndLoadStats() {
+      const answerForStats =
+        mode === "user-guesses" ? fixedAnswer || finalAnswer : finalAnswer;
+
+      if (!completedOutcome || !answerForStats) return;
+
+      const recordKey = [
+        mode,
+        category,
+        answerForStats,
+        completedOutcome,
+        turnCountRef.current,
+      ].join("|");
+
+      if (recordedSessionRef.current === recordKey) return;
+      recordedSessionRef.current = recordKey;
+
+      try {
+        const res = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode,
+            category,
+            answer: answerForStats,
+            outcome: completedOutcome,
+            turnCount: turnCountRef.current,
+          }),
+        });
+
+        if (!res.ok) throw new Error("session log failed");
+        const data = (await res.json()) as { stats?: KnowledgeStats | null };
+        if (active) {
+          setAnswerStats(data.stats ?? null);
+        }
+      } catch {
+        try {
+          const params = new URLSearchParams({
+            category,
+            answer: answerForStats,
+          });
+          const res = await fetch(`/api/stats?${params.toString()}`, {
+            cache: "no-store",
+          });
+          if (!res.ok) return;
+          const data = (await res.json()) as { stats?: KnowledgeStats | null };
+          if (active) {
+            setAnswerStats(data.stats ?? null);
+          }
+        } catch {
+          // Ignore stats fetch failures.
+        }
+      }
+    }
+
+    void persistAndLoadStats();
+
+    return () => {
+      active = false;
+    };
+  }, [category, completedOutcome, finalAnswer, fixedAnswer, mode]);
 
   const showHintAfterResponse = useRef(false);
 
@@ -296,6 +357,7 @@ function GameContent() {
 
         if (mode === "user-guesses" && data.isGameOver) {
           setGameOver(true);
+          setCompletedOutcome("solved");
         }
 
         if (shouldForceAiReveal) {
@@ -369,6 +431,7 @@ function GameContent() {
 
     if (correct) {
       setGameOver(true);
+      setCompletedOutcome("ai_correct");
       setMessages((prev) => [
         ...prev,
         {
@@ -403,6 +466,7 @@ function GameContent() {
   useEffect(() => {
     if (mode === "user-guesses" && turnCount >= 20 && !gameOver) {
       setGameOver(true);
+      setCompletedOutcome("failed");
       const answer = finalAnswer || "알 수 없는 무언가";
       setMessages((prev) => [
         ...prev,
@@ -425,6 +489,8 @@ function GameContent() {
   function handleRevealSubmit() {
     if (!revealInput.trim()) return;
     const answer = revealInput.trim();
+    setFinalAnswer(answer);
+    setCompletedOutcome("revealed");
     setShowReveal(false);
     setMessages((prev) => [
       ...prev,
@@ -510,7 +576,9 @@ function GameContent() {
     }));
   }
 
-  const avgTurns = finalAnswer ? getFakeAverage(finalAnswer) : null;
+  const knownAnswerForStats =
+    mode === "user-guesses" ? fixedAnswer || finalAnswer : finalAnswer;
+  const avgTurns = answerStats?.userGuessAvgTurns ?? null;
   const hasChatActivity = messages.length > 0 || loading;
   const activePromptTemplate = promptDrafts[promptEditorMode];
   const activePromptPreview = getSystemPrompt(
@@ -910,14 +978,27 @@ function GameContent() {
           </div>
         ) : (
           <div className="px-4 py-5 border-t border-border text-center space-y-4">
-            {mode === "user-guesses" && avgTurns && (
+            {knownAnswerForStats && answerStats && (
               <div className="bg-bg-card border border-border rounded-2xl px-4 py-3 space-y-1">
                 <p className="text-xs text-text-dim">
-                  다른 사람들은 평균 <span className="text-mystic font-bold">{avgTurns}번</span> 만에 맞췄다
+                  <span className="text-text-bright">{knownAnswerForStats}</span> 누적 플레이{" "}
+                  <span className="text-mystic font-bold">{answerStats.totalSessions}회</span>
                 </p>
-                <p className="text-sm text-mystic-light font-medium">
-                  {getTeasingMessage(turnCount, avgTurns)}
-                </p>
+                {avgTurns ? (
+                  <>
+                    <p className="text-xs text-text-dim">
+                      실제 유저 평균 정답 턴수{" "}
+                      <span className="text-mystic font-bold">{avgTurns}턴</span>
+                    </p>
+                    <p className="text-sm text-mystic-light font-medium">
+                      {getTeasingMessage(turnCount, avgTurns)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-mystic-light font-medium">
+                    아직 이 정답을 맞춘 유저 통계는 쌓이지 않았다.
+                  </p>
+                )}
               </div>
             )}
 

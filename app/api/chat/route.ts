@@ -1,5 +1,6 @@
 import { getSystemPrompt } from "@/lib/prompts";
 import { ChatRequest, ChatResponse } from "@/lib/types";
+import { getKnowledgeContext } from "@/lib/supabase";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
 const MODEL = "gemini-3.1-flash-lite-preview";
@@ -295,7 +296,12 @@ export async function POST(request: Request) {
       }
     }
 
-    const systemPrompt = getSystemPrompt(mode, category, fixedAnswer, promptOverride);
+    const basePrompt = getSystemPrompt(mode, category, fixedAnswer, promptOverride);
+    const knowledgeContext =
+      mode === "ai-guesses" ? await getKnowledgeContext(category) : "";
+    const systemPrompt = knowledgeContext
+      ? `${basePrompt}\n\n${knowledgeContext}`
+      : basePrompt;
 
     const contents = messages.map((m) => ({
       role: m.role,

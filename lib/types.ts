@@ -33,6 +33,26 @@ export interface ChatResponse {
   guessReasonShort?: string | null;
 }
 
+export interface KnowledgeStats {
+  category: string;
+  normalizedAnswer: string;
+  answer: string;
+  totalSessions: number;
+  userGuessPlays: number;
+  userGuessWins: number;
+  userGuessAvgTurns: number | null;
+  aiGuessPlays: number;
+  aiGuessSuccesses: number;
+  lastPlayedAt: string | null;
+}
+
+export interface RecentPlayItem {
+  answer: string;
+  category: string;
+  mode: GameMode;
+  createdAt: string;
+}
+
 export const CATEGORIES = [
   { id: "famous", label: "유명인", icon: "Sparkles" },
   { id: "character", label: "캐릭터", icon: "Wand2" },
