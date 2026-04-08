@@ -143,11 +143,18 @@ function HomeContent() {
           ))}
         </div>
 
-        {/* {starting && (
-          <div className="mt-6 text-mystic animate-pulse-slow text-sm">
-            봉신이 유리구슬을 닦고 있다...
-          </div>
-        )} */}
+      </div>
+
+      {/* powered by vonvon */}
+      <div className="flex items-center justify-center gap-1.5 py-4 pb-6">
+        <span className="text-[11px] text-text-dim/40">powered by</span>
+        <Image
+          src="/vonvon-logo.png"
+          alt="vonvon"
+          width={60}
+          height={16}
+          className="h-3.5 w-auto opacity-30 brightness-0 invert"
+        />
       </div>
     </main>
   );
