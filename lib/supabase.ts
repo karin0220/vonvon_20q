@@ -35,6 +35,11 @@ const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+const KNOWLEDGE_CONTEXT_CACHE_TTL_MS = 60_000;
+const knowledgeContextCache = new Map<
+  string,
+  { value: string; expiresAt: number }
+>();
 
 function getHeaders(extra?: HeadersInit) {
   return {
@@ -146,6 +151,12 @@ export async function getKnowledgeContext(
 ): Promise<string> {
   if (!isSupabaseConfigured()) return "";
 
+  const cacheKey = `${category}:${limit}`;
+  const cached = knowledgeContextCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
   const query =
     category === "전체"
       ? `answer_knowledge?select=category,answer,total_sessions&order=total_sessions.desc,last_played_at.desc&limit=${limit}`
@@ -157,7 +168,13 @@ export async function getKnowledgeContext(
     { category: string; answer: string; total_sessions: number }[]
   >(query);
 
-  if (!rows.length) return "";
+  if (!rows.length) {
+    knowledgeContextCache.set(cacheKey, {
+      value: "",
+      expiresAt: Date.now() + KNOWLEDGE_CONTEXT_CACHE_TTL_MS,
+    });
+    return "";
+  }
 
   const items = rows
     .map((row) =>

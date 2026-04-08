@@ -6,6 +6,7 @@ const API_KEY = process.env.GEMINI_API_KEY || "";
 const MODEL = "gemini-3.1-flash-lite-preview";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 const GEMINI_TIMEOUT_MS = 15000;
+const TRANSCRIPT_TEXT_LIMIT = 72;
 
 // --- 초반 3턴 하드코딩 오프닝 질문 ---
 const OPENING_QUESTIONS: Record<string, { messages: string[]; axes: string[] }> = {
@@ -160,6 +161,130 @@ function getActualTurnCount(messages: ChatRequest["messages"]) {
   );
 }
 
+function compactText(text: string, limit = TRANSCRIPT_TEXT_LIMIT) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, limit - 1)}…`;
+}
+
+function summarizeAiAnswer(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+
+  if (!normalized) return "unknown";
+  if (normalized.startsWith("응") || normalized.includes("맞아")) return "yes";
+  if (normalized.includes("모르겠")) return "unknown";
+  if (normalized.startsWith("아니")) {
+    return normalized.includes("틀렸") ? "wrong-guess" : "no";
+  }
+
+  return compactText(normalized, 24);
+}
+
+function summarizeUserReply(text: string, responseType?: ChatRequest["messages"][number]["responseType"]) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+
+  if (!normalized) return responseType === "result" ? "result" : "reply";
+  if (responseType === "result") return `result:${compactText(normalized, 48)}`;
+  if (normalized.includes("반은 맞") || normalized.includes("글쎄") || normalized.includes("미묘")) {
+    return "partial";
+  }
+  if (normalized.includes("아니") || normalized.includes("땡") || normalized.includes("젓는군")) {
+    return "no";
+  }
+  if (normalized.includes("맞아") || normalized.includes("그렇지") || normalized.includes("정확")) {
+    return "yes";
+  }
+
+  return compactText(normalized, 48);
+}
+
+function buildAiGuessesTranscript(messages: ChatRequest["messages"]) {
+  const relevant = messages.slice(1);
+  const lines: string[] = [];
+  let pendingModel: ChatRequest["messages"][number] | null = null;
+  let turn = 0;
+
+  for (const message of relevant) {
+    if (message.role === "model") {
+      pendingModel = message;
+      continue;
+    }
+
+    turn += 1;
+    const answer = summarizeAiAnswer(message.content);
+
+    if (!pendingModel) {
+      lines.push(`T${turn} user=${answer}`);
+      continue;
+    }
+
+    const label = pendingModel.responseType === "challenge" ? "guess" : "ask";
+    lines.push(
+      `T${turn} ${label}="${compactText(pendingModel.content)}" user=${answer}`
+    );
+    pendingModel = null;
+  }
+
+  if (pendingModel) {
+    const label = pendingModel.responseType === "challenge" ? "guess" : "ask";
+    lines.push(`Pending ${label}="${compactText(pendingModel.content)}"`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildUserGuessesTranscript(messages: ChatRequest["messages"]) {
+  const relevant = messages.slice(1);
+  const lines: string[] = [];
+  let pendingUser: ChatRequest["messages"][number] | null = null;
+  let turn = 0;
+
+  for (const message of relevant) {
+    if (message.role === "user") {
+      pendingUser = message;
+      continue;
+    }
+
+    turn += 1;
+    const reply = summarizeUserReply(message.content, message.responseType);
+
+    if (!pendingUser) {
+      lines.push(`T${turn} bongshin=${reply}`);
+      continue;
+    }
+
+    lines.push(
+      `T${turn} user="${compactText(pendingUser.content)}" bongshin=${reply}`
+    );
+    pendingUser = null;
+  }
+
+  if (pendingUser) {
+    lines.push(`Current user="${compactText(pendingUser.content)}"`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildCompressedConversation(
+  mode: ChatRequest["mode"],
+  messages: ChatRequest["messages"]
+) {
+  const transcript =
+    mode === "ai-guesses"
+      ? buildAiGuessesTranscript(messages)
+      : buildUserGuessesTranscript(messages);
+  const turnCount = getActualTurnCount(messages);
+
+  return [
+    `Compressed transcript for turn ${turnCount}. Earlier flavor text was removed to save tokens.`,
+    mode === "ai-guesses"
+      ? "Treat yes/no/unknown verdicts as authoritative."
+      : "Respect prior answers and avoid repeating the same question.",
+    transcript || "No prior turns.",
+  ].join("\n");
+}
+
 function hasRecentWrongGuess(messages: ChatRequest["messages"]) {
   // 쿨다운 1턴으로 축소: 직전 유저 메시지만 체크
   const lastUserMsg = messages
@@ -303,10 +428,12 @@ export async function POST(request: Request) {
       ? `${basePrompt}\n\n${knowledgeContext}`
       : basePrompt;
 
-    const contents = messages.map((m) => ({
-      role: m.role,
-      parts: [{ text: m.content }],
-    }));
+    const contents = [
+      {
+        role: "user",
+        parts: [{ text: buildCompressedConversation(mode, messages) }],
+      },
+    ];
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
