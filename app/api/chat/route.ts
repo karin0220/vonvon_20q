@@ -1,6 +1,7 @@
 import { getSystemPrompt } from "@/lib/prompts";
 import { ChatRequest, ChatResponse, ModelId, AVAILABLE_MODELS, THINKING_LEVELS } from "@/lib/types";
 import { getKnowledgeContext } from "@/lib/supabase";
+import { lookupWiki, extractSearchQuery } from "@/lib/wiki";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
 const DEFAULT_MODEL: ModelId = "gemini-3.1-flash-lite-preview";
@@ -705,9 +706,24 @@ export async function POST(request: Request) {
     const basePrompt = getSystemPrompt(mode, category, fixedAnswer, promptOverride);
     const knowledgeContext =
       mode === "ai-guesses" ? await getKnowledgeContext(category) : "";
-    const systemPrompt = knowledgeContext
-      ? `${basePrompt}\n\n${knowledgeContext}`
-      : basePrompt;
+
+    // 위키 조회: ai-guesses 모드에서 턴 7, 11, 15에 실행 (다음 턴 8, 12, 16에 반영)
+    const WIKI_TURNS = [7, 11, 15];
+    const currentTurn = getActualTurnCount(messages);
+    let wikiContext = "";
+    if (mode === "ai-guesses" && WIKI_TURNS.includes(currentTurn)) {
+      const searchQuery = extractSearchQuery(messages, category);
+      if (searchQuery) {
+        const wikiResult = await lookupWiki(searchQuery);
+        if (wikiResult) {
+          wikiContext = `\n\n[참고: 위키 검색 결과 — "${searchQuery}"]\n${wikiResult}\n위 정보는 참고용이다. 대화 흐름과 유저 답변을 최우선으로 하되, 최신 정보가 필요할 때 활용해라.`;
+        }
+      }
+    }
+
+    const systemPrompt = [basePrompt, knowledgeContext, wikiContext]
+      .filter(Boolean)
+      .join("\n\n");
 
     const contents = [
       {
