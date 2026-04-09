@@ -127,6 +127,7 @@ function GameContent() {
   >([]);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [initFailed, setInitFailed] = useState(false);
   const [turnCount, setTurnCount] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
@@ -331,9 +332,13 @@ function GameContent() {
         ];
         const nextTurnCount = isInit ? 0 : turnCountRef.current + 1;
 
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             mode,
             category,
@@ -343,7 +348,7 @@ function GameContent() {
             ...(adminModel && { modelOverride: adminModel }),
             ...(adminThinking && { thinkingOverride: adminThinking }),
           }),
-        });
+        }).finally(() => clearTimeout(timeout));
 
         if (!res.ok) throw new Error("API error");
 
@@ -440,9 +445,13 @@ function GameContent() {
         : `게임을 시작한다. "${category}" 카테고리에서 하나를 골라라. 정답은 밝히지 말고 게임 시작 멘트를 해라.`;
 
     void (async () => {
-      await sendToAPI(initMessage, [], true);
+      const result = await sendToAPI(initMessage, [], true);
       if (active) {
         setBootstrapping(false);
+        // sendToAPI가 에러 시 currentHistory(빈 배열)를 리턴함
+        if (result.length === 0) {
+          setInitFailed(true);
+        }
       }
     })();
 
@@ -450,6 +459,22 @@ function GameContent() {
       active = false;
     };
   }, [mode, category, sendToAPI, promptConfigReady]);
+
+  async function retryInit() {
+    setInitFailed(false);
+    setBootstrapping(true);
+    setMessages([]);
+    setHistory([]);
+    const initMessage =
+      mode === "ai-guesses"
+        ? `게임을 시작한다. 유저가 "${category}" 카테고리에서 하나를 떠올렸다. 첫 질문을 해라.`
+        : `게임을 시작한다. "${category}" 카테고리에서 하나를 골라라. 정답은 밝히지 말고 게임 시작 멘트를 해라.`;
+    const result = await sendToAPI(initMessage, [], true);
+    setBootstrapping(false);
+    if (result.length === 0) {
+      setInitFailed(true);
+    }
+  }
 
   async function handleUserResponse(answer: string, fromSuggested = false) {
     if (bootstrapping || loading || gameOver || awaitingGuessConfirmation || turnCountRef.current >= 20) return;
@@ -970,7 +995,20 @@ function GameContent() {
           </>
         ) : (
           <div className="rounded-2xl border border-border bg-bg/85 px-4 py-3 text-center text-sm text-text-dim backdrop-blur-sm">
-            봉신이 첫 질문을 고르는 중...
+            {initFailed ? (
+              <div className="space-y-2">
+                <p>유리구슬 연결에 실패했다...</p>
+                <button
+                  type="button"
+                  onClick={retryInit}
+                  className="rounded-full bg-mystic px-4 py-1.5 text-xs font-semibold text-black hover:bg-mystic-light"
+                >
+                  다시 시도
+                </button>
+              </div>
+            ) : (
+              "봉신이 첫 질문을 고르는 중..."
+            )}
           </div>
         )}
         </div>

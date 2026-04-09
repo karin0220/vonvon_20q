@@ -180,9 +180,9 @@ function HomeContent() {
         <Image
           src="/vonvon-logo.png"
           alt="vonvon"
-          width={132}
-          height={35}
-          className="h-[30px] w-auto opacity-30 brightness-0 invert"
+          width={113}
+          height={30}
+          className="opacity-30 brightness-0 invert"
         />
       </div>
     </main>
