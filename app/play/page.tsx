@@ -481,11 +481,33 @@ function GameContent() {
     };
   }, [mode, category, sendToAPI, promptConfigReady]);
 
-  async function retryInit() {
-    setInitFailed(false);
-    setBootstrapping(true);
+  async function restartGame() {
     setMessages([]);
     setHistory([]);
+    setGameOver(false);
+    setCompletedOutcome(null);
+    setFinalAnswer(null);
+    setAwaitingGuessConfirmation(false);
+    setInput("");
+    setCopied(false);
+    setShowedHintEnd(false);
+    setRevealInput("");
+    setShowReveal(false);
+    setAnswerStats(null);
+    setCategoryAvgTurns(null);
+    setSessionId(null);
+    setSuggestedUsedCount(0);
+    setTurnCount(0);
+    setInitFailed(false);
+    turnCountRef.current = 0;
+    recordedSessionRef.current = null;
+    initialized.current = true; // prevent useEffect from double-firing
+    setBootstrapping(true);
+    setShowIntro(true);
+    setIntroFading(false);
+    setTimeout(() => setIntroFading(true), 1800);
+    setTimeout(() => setShowIntro(false), 2600);
+
     const initMessage =
       mode === "ai-guesses"
         ? `게임을 시작한다. 유저가 "${category}" 카테고리에서 하나를 떠올렸다. 첫 질문을 해라.`
@@ -1030,7 +1052,7 @@ function GameContent() {
                 <p>유리구슬 연결에 실패했다...</p>
                 <button
                   type="button"
-                  onClick={retryInit}
+                  onClick={restartGame}
                   className="rounded-full bg-mystic px-4 py-1.5 text-xs font-semibold text-black hover:bg-mystic-light"
                 >
                   다시 시도
@@ -1149,33 +1171,7 @@ function GameContent() {
 
             <div className="flex gap-2 justify-center">
               <button
-                onClick={() => {
-                  setMessages([]);
-                  setHistory([]);
-                  setGameOver(false);
-                  setCompletedOutcome(null);
-                  setFinalAnswer(null);
-                  setAwaitingGuessConfirmation(false);
-                  setInput("");
-                  setCopied(false);
-                  setShowedHintEnd(false);
-                  setRevealInput("");
-                  setShowReveal(false);
-                  setAnswerStats(null);
-                  setCategoryAvgTurns(null);
-                  setSessionId(null);
-                  setSuggestedUsedCount(0);
-                  setTurnCount(0);
-                  setInitFailed(false);
-                  turnCountRef.current = 0;
-                  recordedSessionRef.current = null;
-                  initialized.current = false;
-                  setBootstrapping(true);
-                  setShowIntro(true);
-                  setIntroFading(false);
-                  setTimeout(() => setIntroFading(true), 1800);
-                  setTimeout(() => setShowIntro(false), 2600);
-                }}
+                onClick={restartGame}
                 className="px-5 py-2.5 rounded-full bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors"
               >
                 다시 하기
