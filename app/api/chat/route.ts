@@ -692,6 +692,18 @@ function sanitizeResponse(
         shouldGuessNow: false,
       };
     }
+
+    // 유효한 도전: 메시지를 강제 재구성 (Gemini가 질문형으로 쓰는 것 방지)
+    if (responseType === "challenge" && base.guess) {
+      const CHALLENGE_TEMPLATES = [
+        `봉신의 도전이다. 네가 떠올린 것은 '${base.guess}'이다!`,
+        `봉신의 유리구슬이 마침내 하나의 진실을 비춘다. 네가 떠올린 것은 '${base.guess}'이다!`,
+        `크흠... 봉신의 직감이 속삭인다. 정답은 '${base.guess}'이다!`,
+        `봉신의 마지막 예언이다. 네가 떠올린 것은 '${base.guess}'이다.`,
+        `자... 봉신의 유리구슬이 확신한다. '${base.guess}'이다!`,
+      ];
+      base.message = CHALLENGE_TEMPLATES[Math.floor(Math.random() * CHALLENGE_TEMPLATES.length)];
+    }
   }
 
   return base;
