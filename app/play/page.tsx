@@ -438,12 +438,13 @@ function GameContent() {
         return updatedHistory;
       } catch {
         setAwaitingGuessConfirmation(false);
+        // 에러 시에도 턴 소비하지 않음 (재시도 가능하도록)
         setMessages((prev) => [
           ...prev,
           {
             role: "bongshin",
-            content: "유리구슬에 금이 갔다... 다시 시도해봐",
-            responseType: "result",
+            content: "유리구슬에 금이 갔다... 다시 질문해봐",
+            responseType: "question",
           },
         ]);
         return currentHistory;
@@ -554,7 +555,10 @@ function GameContent() {
           responseType: "result",
         },
       ]);
-    } else if (turnCountRef.current >= 20) {
+    } else if (turnCountRef.current >= 19) {
+      // 19턴에서 도전 실패 = 20턴 소비 → 게임 종료
+      turnCountRef.current = 20;
+      setTurnCount(20);
       setGameOver(true);
       setShowReveal(true);
       setMessages((prev) => [
@@ -566,11 +570,8 @@ function GameContent() {
         },
       ]);
     } else {
-      // 도전 확인 응답은 턴 소비 없이 전송 — sendToAPI 후 턴 복원
-      const savedTurn = turnCountRef.current;
+      // 도전 실패도 1턴 소비 (도전+응답 = 한 턴의 대화)
       await sendToAPI(response, history);
-      turnCountRef.current = savedTurn;
-      setTurnCount(savedTurn);
     }
   }
 
