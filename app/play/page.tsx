@@ -153,6 +153,7 @@ function GameContent() {
   const [completedOutcome, setCompletedOutcome] = useState<SessionOutcome | null>(null);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
   const [showPromptGate, setShowPromptGate] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(false);
   const [showPromptAdmin, setShowPromptAdmin] = useState(false);
   const [promptEditorMode, setPromptEditorMode] = useState<GameMode>("ai-guesses");
   const [promptOverrides, setPromptOverrides] = useState<PromptOverrideMap>({});
@@ -712,6 +713,11 @@ function GameContent() {
   }
 
   function handleOrbTap() {
+    // 이미 어드민 모드면 패널 토글
+    if (isAdminMode) {
+      setShowPromptAdmin((prev) => !prev);
+      return;
+    }
     orbTapCountRef.current += 1;
     if (orbTapTimerRef.current) {
       window.clearTimeout(orbTapTimerRef.current);
@@ -737,6 +743,7 @@ function GameContent() {
     setPromptGateError(false);
     setPromptGateValue("");
     setShowPromptGate(false);
+    setIsAdminMode(true);
     setShowPromptAdmin(true);
   }
 
@@ -835,14 +842,29 @@ function GameContent() {
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={handleOrbTap}
-          className="text-lg select-none"
-          aria-label="봉신의 유리구슬"
-        >
-          🔮
-        </button>
+        <div className="flex items-center gap-1.5">
+          {isAdminMode && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdminMode(false);
+                setShowPromptAdmin(false);
+              }}
+              className="text-[9px] text-red-400/70 hover:text-red-300 transition-colors"
+              title="관리자 모드 종료"
+            >
+              EXIT
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleOrbTap}
+            className={`text-lg select-none ${isAdminMode ? "ring-1 ring-mystic/50 rounded-full" : ""}`}
+            aria-label="봉신의 유리구슬"
+          >
+            🔮
+          </button>
+        </div>
       </header>
 
       {showPromptGate && (
@@ -851,7 +873,7 @@ function GameContent() {
             <div className="w-full rounded-3xl border border-border bg-bg-card px-5 py-5 shadow-2xl">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-text-bright">관리자 인증</p>
-                <p className="text-xs text-text-dim">암호를 입력하면 숨김 프롬프트 관리자가 열린다.</p>
+                <p className="text-xs text-text-dim">암호를 입력하면 관리자 모드가 활성화된다.</p>
               </div>
               <div className="mt-4 space-y-3">
                 <input
@@ -1104,7 +1126,7 @@ function GameContent() {
                       </div>
                     )}
 
-                  {showPromptAdmin && msg.role === "bongshin" && (msg.debugFacts || msg.debugTurnInstruction) && (
+                  {isAdminMode && msg.role === "bongshin" && (msg.debugFacts || msg.debugTurnInstruction) && (
                     <div className="mt-1.5 px-2 py-1.5 rounded-lg bg-yellow-900/30 border border-yellow-700/40 text-[10px] leading-relaxed text-yellow-200/80 font-mono whitespace-pre-wrap">
                       {msg.debugFacts && <div>{msg.debugFacts}</div>}
                       {msg.debugTurnInstruction && <div className="mt-1 text-blue-300/70">{msg.debugTurnInstruction}</div>}
