@@ -808,8 +808,8 @@ export async function POST(request: Request) {
     // 트리에서 축적된 팩트 요약 (ai-guesses만)
     let treeFactContext = "";
     if (mode === "ai-guesses") {
-      const { path } = buildAnswerPath(messages);
-      treeFactContext = buildFactSummary(category, path);
+      const { path, rawAnswers } = buildAnswerPath(messages);
+      treeFactContext = buildFactSummary(category, path, rawAnswers);
     }
 
     // 턴 기반 타입 강제 (ai-guesses 모드만)

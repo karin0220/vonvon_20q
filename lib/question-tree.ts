@@ -52,12 +52,12 @@ function toTreePath(answer: "Y" | "N" | "A"): "Y" | "N" {
 
 export function buildAnswerPath(
   messages: { role: string; content: string }[]
-): { path: string; lastRaw: "Y" | "N" | "A" | null } {
+): { path: string; rawAnswers: ("Y" | "N" | "A")[]; lastRaw: "Y" | "N" | "A" | null } {
   const userMsgs = messages.filter((m) => m.role === "user").slice(1);
-  if (userMsgs.length === 0) return { path: "", lastRaw: null };
+  if (userMsgs.length === 0) return { path: "", rawAnswers: [], lastRaw: null };
   const answers = userMsgs.map((m) => classifyAnswer(m.content));
   const path = answers.map(toTreePath).join("");
-  return { path, lastRaw: answers[answers.length - 1] };
+  return { path, rawAnswers: answers, lastRaw: answers[answers.length - 1] };
 }
 
 // --- 트리 데이터 ---
@@ -113,10 +113,10 @@ const CHARACTER: Record<string, TreeNode> = {
   "2:NN":  n("그 캐릭터는 한국 웹툰이나 드라마에서 나오는 존재냐?", "korean_media", "한국 웹툰/드라마", "기타 매체"),
   "3:YYY": n("그 캐릭터는 그 작품의 주인공이냐?", "protagonist", "주인공", "주인공 아님"),
   "3:YYN": n("그 캐릭터는 그 작품의 주인공이냐?", "protagonist", "주인공", "주인공 아님"),
-  "3:YNY": n("그 캐릭터는 인간이냐?", "human", "인간", "비인간"),
-  "3:YNN": n("그 캐릭터는 인간이냐?", "human", "인간", "비인간"),
-  "3:NYY": n("그 캐릭터는 인간이냐?", "human", "인간", "비인간"),
-  "3:NYN": n("그 캐릭터는 인간이냐?", "human", "인간", "비인간"),
+  "3:YNY": n("그 캐릭터는 전투나 액션을 하는 캐릭터냐?", "action", "전투/액션 캐릭터", "비전투 캐릭터"),
+  "3:YNN": n("그 캐릭터는 전투나 액션을 하는 캐릭터냐?", "action", "전투/액션 캐릭터", "비전투 캐릭터"),
+  "3:NYY": n("그 캐릭터는 전투나 액션을 하는 캐릭터냐?", "action", "전투/액션 캐릭터", "비전투 캐릭터"),
+  "3:NYN": n("그 캐릭터는 전투나 액션을 하는 캐릭터냐?", "action", "전투/액션 캐릭터", "비전투 캐릭터"),
   "3:NNY": n("그 캐릭터는 남자냐?", "gender", "남자", "여자"),
   "3:NNN": n("그 캐릭터는 남자냐?", "gender", "남자", "여자"),
   // T4
@@ -125,7 +125,7 @@ const CHARACTER: Record<string, TreeNode> = {
   "4:NY":  n("그 캐릭터는 특수한 능력을 가졌느냐?", "power", "능력자", "비능력자"),
   "4:NN":  n("그 캐릭터는 주인공이냐?", "protagonist", "주인공", "주인공 아님"),
   // T5
-  "5:Y":   n("그 캐릭터가 나오는 작품은 현재도 연재 중이거나 시리즈가 계속되고 있느냐?", "ongoing", "연재/방영 중", "완결"),
+  "5:Y":   n("그 캐릭터가 나오는 작품은 2015년 이후에 처음 나온 것이냐?", "era", "2015년 이후", "2015년 이전"),
   "5:N":   n("그 캐릭터가 나오는 작품은 2010년 이후에 나온 것이냐?", "era", "2010년 이후", "2010년 이전"),
 };
 
@@ -257,26 +257,40 @@ function lookupNode(
 }
 
 // --- 팩트 요약 빌더 (트리 종료 후 Gemini에 전달) ---
-export function buildFactSummary(category: string, path: string): string {
+export function buildFactSummary(category: string, path: string, rawAnswers: ("Y" | "N" | "A")[] = []): string {
   const tree = TREES[category] ?? TREES["전체"];
-  const facts: string[] = [];
+  const confirmed: string[] = [];
+  const uncertain: string[] = [];
 
   for (let turn = 0; turn < path.length; turn++) {
     const subpath = path.slice(0, turn);
     const node = lookupNode(tree, turn, subpath);
     if (node) {
-      const answer = path[turn];
-      if (answer === "Y") {
-        facts.push(`"${node.q}" → 예 (${node.yes} 확인됨)`);
+      const raw = rawAnswers[turn] ?? (path[turn] === "Y" ? "Y" : "N");
+      const treePath = path[turn]; // Y or N (A는 N으로 변환된 상태)
+
+      if (raw === "A") {
+        // 유저가 "애매하다"고 한 것 — 불확실한 정보
+        uncertain.push(`"${node.q}" → 유저가 애매하다고 답함 (${treePath === "Y" ? node.yes : node.no}일 수도 있고 아닐 수도 있음)`);
+      } else if (raw === "Y") {
+        confirmed.push(`"${node.q}" → 예 (${node.yes})`);
       } else {
-        facts.push(`"${node.q}" → 아니오 (${node.no} 확인됨)`);
+        confirmed.push(`"${node.q}" → 아니오 (${node.no})`);
       }
     }
   }
 
-  return facts.length > 0
-    ? `[결정 트리에서 확인된 사실]\n${facts.join("\n")}\n위 정보는 유저가 직접 확인한 것이므로 100% 신뢰해라. 이 사실과 모순되는 질문을 절대 하지 마라.`
-    : "";
+  const parts: string[] = [];
+  if (confirmed.length > 0) {
+    parts.push(`[유저가 확인한 사실]\n${confirmed.join("\n")}`);
+  }
+  if (uncertain.length > 0) {
+    parts.push(`[불확실한 정보 — 유저가 애매하다고 답함]\n${uncertain.join("\n")}`);
+  }
+
+  if (parts.length === 0) return "";
+
+  return parts.join("\n\n") + `\n\n위 정보를 참고하되, 유저가 실수하거나 판단이 애매한 경우가 있을 수 있다. 확인된 사실과 다소 모순되는 정답 후보도 완전히 배제하지 마라. 특히 "불확실" 항목은 양쪽 모두 열어두고 추론해라.`;
 }
 
 // --- 메인 엔트리: 트리 응답 생성 ---
