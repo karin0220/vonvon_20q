@@ -666,7 +666,9 @@ function GameContent() {
 
   const knownAnswerForStats =
     mode === "user-guesses" ? fixedAnswer || finalAnswer : finalAnswer;
-  const avgTurns = answerStats?.userGuessAvgTurns ?? null;
+  const avgTurns = mode === "user-guesses"
+    ? (answerStats?.userGuessAvgTurns ?? null)
+    : (answerStats?.aiGuessAvgTurns ?? null);
   const hasChatActivity = messages.length > 0 || loading;
   const activePromptTemplate = promptDrafts[promptEditorMode];
   const activePromptPreview = getSystemPrompt(
@@ -1126,7 +1128,7 @@ function GameContent() {
                 {avgTurns ? (
                   <>
                     <p className="text-xs text-text-dim">
-                      실제 유저 평균 정답 턴수{" "}
+                      {mode === "user-guesses" ? "유저 평균 정답 턴수" : "봉신 평균 정답 턴수"}{" "}
                       <span className="text-mystic font-bold">{avgTurns}턴</span>
                     </p>
                     <p className="text-sm text-mystic-light font-medium">
