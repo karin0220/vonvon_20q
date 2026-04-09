@@ -412,3 +412,35 @@ export async function setPromptOverrides(overrides: PromptOverrides): Promise<bo
     return false;
   }
 }
+
+// --- 질문 트리 오버라이드 (Supabase 저장) ---
+// 형식: { "카테고리": { "turn:path": { q, axis, yes, no } } }
+export type QuestionTreeOverrides = Record<string, Record<string, { q: string; axis: string; yes: string; no: string }>>;
+
+const QUESTION_TREE_KEY = "question_tree";
+const questionTreeCache: { value: QuestionTreeOverrides | null; expiresAt: number } = {
+  value: null,
+  expiresAt: 0,
+};
+
+export async function getQuestionTree(): Promise<QuestionTreeOverrides> {
+  if (!isSupabaseConfigured()) return {};
+
+  const now = Date.now();
+  if (questionTreeCache.value !== null && now < questionTreeCache.expiresAt) {
+    return questionTreeCache.value;
+  }
+
+  try {
+    const rows = await supabaseRest<{ key: string; value: QuestionTreeOverrides }[]>(
+      `admin_config?key=eq.${QUESTION_TREE_KEY}&select=key,value`
+    );
+    const result = rows.length ? rows[0].value ?? {} : {};
+    questionTreeCache.value = result;
+    questionTreeCache.expiresAt = now + ADMIN_CONFIG_CACHE_TTL_MS;
+    return result;
+  } catch (e) {
+    console.error("Failed to load question tree:", e);
+    return {};
+  }
+}

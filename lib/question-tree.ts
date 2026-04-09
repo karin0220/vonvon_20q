@@ -242,6 +242,15 @@ const TREES: Record<string, Record<string, TreeNode>> = {
   "전체": ALL,
 };
 
+// DB 오버라이드 머지: DB 값이 있으면 해당 노드만 덮어쓰기
+export type TreeOverrides = Record<string, Record<string, { q: string; axis: string; yes: string; no: string }>>;
+
+function mergeTree(category: string, overrides?: TreeOverrides): Record<string, TreeNode> {
+  const base = TREES[category] ?? TREES["전체"];
+  if (!overrides?.[category]) return base;
+  return { ...base, ...overrides[category] };
+}
+
 // --- 트리 조회 ---
 function lookupNode(
   tree: Record<string, TreeNode>,
@@ -257,8 +266,8 @@ function lookupNode(
 }
 
 // --- 팩트 요약 빌더 (트리 종료 후 Gemini에 전달) ---
-export function buildFactSummary(category: string, path: string, rawAnswers: ("Y" | "N" | "A")[] = []): string {
-  const tree = TREES[category] ?? TREES["전체"];
+export function buildFactSummary(category: string, path: string, rawAnswers: ("Y" | "N" | "A")[] = [], overrides?: TreeOverrides): string {
+  const tree = mergeTree(category, overrides);
   const confirmed: string[] = [];
   const uncertain: string[] = [];
 
@@ -296,7 +305,8 @@ export function buildFactSummary(category: string, path: string, rawAnswers: ("Y
 // --- 메인 엔트리: 트리 응답 생성 ---
 export function getTreeResponse(
   category: string,
-  messages: { role: string; content: string }[]
+  messages: { role: string; content: string }[],
+  overrides?: TreeOverrides
 ): ChatResponse | null {
   const { path, lastRaw } = buildAnswerPath(messages);
   const turn = path.length;
@@ -304,7 +314,7 @@ export function getTreeResponse(
   // 트리는 턴 0-5만 커버 (6턴)
   if (turn > 5) return null;
 
-  const tree = TREES[category] ?? TREES["전체"];
+  const tree = mergeTree(category, overrides);
   const node = lookupNode(tree, turn, path);
   if (!node) return null;
 

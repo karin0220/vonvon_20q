@@ -1,8 +1,8 @@
 import { getSystemPrompt } from "@/lib/prompts";
 import { ChatRequest, ChatResponse, ModelId, AVAILABLE_MODELS, THINKING_LEVELS } from "@/lib/types";
-import { getKnowledgeContext, getAdminConfig, getPromptOverrides } from "@/lib/supabase";
+import { getKnowledgeContext, getAdminConfig, getPromptOverrides, getQuestionTree } from "@/lib/supabase";
 import { lookupWiki, extractSearchQuery } from "@/lib/wiki";
-import { getTreeResponse, buildAnswerPath, buildFactSummary } from "@/lib/question-tree";
+import { getTreeResponse, buildAnswerPath, buildFactSummary, type TreeOverrides } from "@/lib/question-tree";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
 const DEFAULT_MODEL: ModelId = "gemini-3.1-flash-lite-preview";
@@ -765,9 +765,10 @@ export async function POST(request: Request) {
     const { mode, category, messages, fixedAnswer } = body;
 
     // 서버 측 관리자 설정 (Supabase) — 클라이언트 오버라이드보다 우선
-    const [adminConfig, serverPromptOverrides] = await Promise.all([
+    const [adminConfig, serverPromptOverrides, treeOverrides] = await Promise.all([
       getAdminConfig(),
       getPromptOverrides(),
+      getQuestionTree(),
     ]);
     const promptOverride = serverPromptOverrides[mode] || undefined;
 
@@ -782,7 +783,7 @@ export async function POST(request: Request) {
 
     // ai-guesses 모드: 초반 6턴은 결정 트리로 처리 (API 호출 절약 + 효율적 분기)
     if (mode === "ai-guesses") {
-      const treeResponse = getTreeResponse(category, messages);
+      const treeResponse = getTreeResponse(category, messages, treeOverrides);
       if (treeResponse) {
         return Response.json(treeResponse);
       }
@@ -809,7 +810,7 @@ export async function POST(request: Request) {
     let treeFactContext = "";
     if (mode === "ai-guesses") {
       const { path, rawAnswers } = buildAnswerPath(messages);
-      treeFactContext = buildFactSummary(category, path, rawAnswers);
+      treeFactContext = buildFactSummary(category, path, rawAnswers, treeOverrides);
     }
 
     // 턴 기반 타입 강제 (ai-guesses 모드만)
