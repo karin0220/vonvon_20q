@@ -357,7 +357,7 @@ function buildTurnInstruction(action: TurnAction, turnCount: number): string {
     return `\n\n[턴 ${turnCount} 지시] 이번 턴에서는 반드시 질문(question)만 해라. 도전(challenge)하지 마라. responseType을 반드시 "question"으로 설정해라.`;
   }
   if (action === "challenge") {
-    return `\n\n[턴 ${turnCount} 지시] 이번 턴에서는 반드시 정답을 추측(challenge)해라. 질문하지 마라. responseType을 반드시 "challenge"로 설정하고, guess 필드에 정답을 넣어라. 지금까지의 단서를 종합해서 최선의 추측을 해라.`;
+    return `\n\n[턴 ${turnCount} 지시] 이번 턴에서는 반드시 정답을 추측(challenge)해라. 질문하지 마라. responseType을 반드시 "challenge"로 설정하고, guess 필드에 구체적인 고유명사(사람 이름, 작품명, 노래 제목 등)를 넣어라. 지금까지의 단서를 종합해서 최선의 추측을 해라. ★ 절대 포기하지 마라. "모르겠다"나 "실패" 같은 응답은 금지다. 확신이 없더라도 반드시 하나를 찍어라. 스무고개에서 마지막 기회를 질문이나 포기로 낭비하는 것은 최악의 전략이다.`;
   }
   return "";
 }
@@ -507,6 +507,33 @@ function countPreviousChallenges(messages: ChatRequest["messages"]) {
   ).length;
 }
 
+// 대화에서 이전에 실패한 추측 목록 추출
+function getPreviousGuesses(messages: ChatRequest["messages"]): string[] {
+  const guesses: string[] = [];
+  for (const m of messages) {
+    if (m.role === "model" && m.responseType === "challenge") {
+      // 메시지에서 '작은따옴표' 안의 추측 추출
+      const match = m.content.match(/'([^']+)'/);
+      if (match) guesses.push(match[1]);
+    }
+  }
+  return guesses;
+}
+
+// 마지막 수단: Gemini가 guess를 안 줬을 때 메시지 텍스트에서 고유명사 추출 시도
+function extractGuessFromMessage(message: string): string | null {
+  // 작은따옴표로 감싼 것
+  const singleQuote = message.match(/'([^']{2,30})'/);
+  if (singleQuote) return singleQuote[1];
+  // 큰따옴표
+  const doubleQuote = message.match(/"([^"]{2,30})"/);
+  if (doubleQuote) return doubleQuote[1];
+  // 「」
+  const bracket = message.match(/「([^」]{2,30})」/);
+  if (bracket) return bracket[1];
+  return null;
+}
+
 // 카테고리별 fallback 질문 풀 — 도전 필터링 시 대체 질문으로 사용
 const FALLBACK_POOLS: Record<string, string[]> = {
   "유명인": [
@@ -621,10 +648,10 @@ function sanitizeResponse(
   if (mode === "ai-guesses") {
     const isLateGame = actualTurnCount >= 18;
 
-    // 턴 액션 강제: 턴 18+인데 Gemini가 질문을 보냈으면 → guess가 있으면 도전으로 전환
-    if (turnAction === "challenge" && responseType === "question") {
+    // 턴 액션 강제: 턴 18+인데 Gemini가 도전 대신 질문/포기를 보냈으면 → 도전으로 전환
+    if (turnAction === "challenge" && responseType !== "challenge") {
       if (base.guess) {
-        // guess는 있는데 질문으로 분류됨 → 도전으로 강제 전환
+        // guess는 있는데 질문/result로 분류됨 → 도전으로 강제 전환
         const CHALLENGE_TEMPLATES = [
           `봉신의 도전이다. 네가 떠올린 것은 '${base.guess}'이다!`,
           `봉신의 유리구슬이 마침내 하나의 진실을 비춘다. 네가 떠올린 것은 '${base.guess}'이다!`,
@@ -640,7 +667,27 @@ function sanitizeResponse(
           shouldGuessNow: true,
         };
       }
-      // guess도 없으면 어쩔 수 없이 질문으로 통과 (프롬프트 강화로 다음엔 도전할 것)
+      // guess 필드는 없지만 메시지 텍스트에 이름이 있을 수 있음 → 추출 시도
+      const extractedGuess = extractGuessFromMessage(base.message);
+      if (extractedGuess) {
+        const CHALLENGE_TEMPLATES = [
+          `봉신의 도전이다. 네가 떠올린 것은 '${extractedGuess}'이다!`,
+          `크흠... 봉신의 직감이 속삭인다. 정답은 '${extractedGuess}'이다!`,
+          `자... 봉신의 유리구슬이 확신한다. '${extractedGuess}'이다!`,
+        ];
+        return {
+          ...base,
+          message: CHALLENGE_TEMPLATES[Math.floor(Math.random() * CHALLENGE_TEMPLATES.length)],
+          responseType: "challenge",
+          isGuess: true,
+          guess: extractedGuess,
+          isGameOver: false,
+          stage: "challenge",
+          shouldGuessNow: true,
+        };
+      }
+      // 정말 아무 추측도 못 함 → 질문으로 전환 (턴 소비, 다음 턴에 다시 도전 강제)
+      // 단, 이 경우는 극히 드묾
     }
 
     const challengeTooEarly = actualTurnCount < 8 && responseType === "challenge";
@@ -704,6 +751,9 @@ function sanitizeResponse(
       ];
       base.message = CHALLENGE_TEMPLATES[Math.floor(Math.random() * CHALLENGE_TEMPLATES.length)];
     }
+
+    // ai-guesses 모드에서 isGameOver는 서버가 결정 — Gemini가 임의로 게임을 끝내지 못하게
+    base.isGameOver = false;
   }
 
   return base;
@@ -830,7 +880,11 @@ export async function POST(request: Request) {
       turnAction
     );
 
-    return Response.json(sanitized);
+    return Response.json({
+      ...sanitized,
+      ...(treeFactContext ? { _debug_facts: treeFactContext } : {}),
+      ...(turnInstruction ? { _debug_turnInstruction: turnInstruction } : {}),
+    });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Chat API error:", msg);

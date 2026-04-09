@@ -406,6 +406,7 @@ function GameContent() {
           responseType !== "challenge";
 
         setMessages((prev) => {
+          const debugData = data as unknown as Record<string, unknown>;
           const updated = [
             ...prev,
             {
@@ -414,6 +415,8 @@ function GameContent() {
               suggestedQuestions: data.suggestedQuestions || undefined,
               isGuess: responseType === "challenge",
               responseType: shouldForceAiReveal ? "result" : responseType,
+              debugFacts: (debugData._debug_facts as string) || undefined,
+              debugTurnInstruction: (debugData._debug_turnInstruction as string) || undefined,
             },
           ];
           // 추천 질문 4번 사용 후 API 응답 뒤에 힌트 메시지 삽입
@@ -1100,6 +1103,13 @@ function GameContent() {
                         </button>
                       </div>
                     )}
+
+                  {showPromptAdmin && msg.role === "bongshin" && (msg.debugFacts || msg.debugTurnInstruction) && (
+                    <div className="mt-1.5 px-2 py-1.5 rounded-lg bg-yellow-900/30 border border-yellow-700/40 text-[10px] leading-relaxed text-yellow-200/80 font-mono whitespace-pre-wrap">
+                      {msg.debugFacts && <div>{msg.debugFacts}</div>}
+                      {msg.debugTurnInstruction && <div className="mt-1 text-blue-300/70">{msg.debugTurnInstruction}</div>}
+                    </div>
+                  )}
 
                   {msg.suggestedQuestions &&
                     mode === "user-guesses" &&

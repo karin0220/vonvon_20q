@@ -266,13 +266,16 @@ export function buildFactSummary(category: string, path: string): string {
     const node = lookupNode(tree, turn, subpath);
     if (node) {
       const answer = path[turn];
-      const label = answer === "Y" ? node.yes : node.no;
-      facts.push(`${label}(${answer === "Y" ? "O" : "X"})`);
+      if (answer === "Y") {
+        facts.push(`"${node.q}" → 예 (${node.yes} 확인됨)`);
+      } else {
+        facts.push(`"${node.q}" → 아니오 (${node.no} 확인됨)`);
+      }
     }
   }
 
   return facts.length > 0
-    ? `[결정 트리에서 확인된 사실]\n${facts.join(", ")}\n위 정보는 유저가 직접 확인한 것이므로 100% 신뢰해라.`
+    ? `[결정 트리에서 확인된 사실]\n${facts.join("\n")}\n위 정보는 유저가 직접 확인한 것이므로 100% 신뢰해라. 이 사실과 모순되는 질문을 절대 하지 마라.`
     : "";
 }
 

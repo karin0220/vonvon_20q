@@ -8,6 +8,8 @@ export interface ChatMessage {
   isGuess?: boolean;
   isCorrect?: boolean;
   responseType?: BongshinResponseType;
+  debugFacts?: string;
+  debugTurnInstruction?: string;
 }
 
 export const AVAILABLE_MODELS = [
