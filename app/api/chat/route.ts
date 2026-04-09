@@ -1,6 +1,6 @@
 import { getSystemPrompt } from "@/lib/prompts";
 import { ChatRequest, ChatResponse, ModelId, AVAILABLE_MODELS, THINKING_LEVELS } from "@/lib/types";
-import { getKnowledgeContext } from "@/lib/supabase";
+import { getKnowledgeContext, getAdminConfig } from "@/lib/supabase";
 import { lookupWiki, extractSearchQuery } from "@/lib/wiki";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
@@ -343,6 +343,24 @@ function getThinkingLevel(_mode: ChatRequest["mode"]) {
   return "low";
 }
 
+// 턴 기반 타입 강제: 서버가 질문/도전 여부를 결정하고 프롬프트에 주입
+type TurnAction = "question" | "challenge" | "auto";
+function getTurnAction(turnCount: number): TurnAction {
+  if (turnCount <= 7) return "question";   // 초반: 정보 수집만
+  if (turnCount >= 18) return "challenge"; // 후반: 반드시 정답 도전
+  return "auto";                           // 중반: Gemini 자율 판단
+}
+
+function buildTurnInstruction(action: TurnAction, turnCount: number): string {
+  if (action === "question") {
+    return `\n\n[턴 ${turnCount} 지시] 이번 턴에서는 반드시 질문(question)만 해라. 도전(challenge)하지 마라. responseType을 반드시 "question"으로 설정해라.`;
+  }
+  if (action === "challenge") {
+    return `\n\n[턴 ${turnCount} 지시] 이번 턴에서는 반드시 정답을 추측(challenge)해라. 질문하지 마라. responseType을 반드시 "challenge"로 설정하고, guess 필드에 정답을 넣어라. 지금까지의 단서를 종합해서 최선의 추측을 해라.`;
+  }
+  return "";
+}
+
 function getActualTurnCount(messages: ChatRequest["messages"]) {
   return Math.max(
     0,
@@ -578,7 +596,8 @@ function sanitizeResponse(
   category: string,
   actualTurnCount: number,
   hadRecentWrongGuess: boolean,
-  messages: ChatRequest["messages"]
+  messages: ChatRequest["messages"],
+  turnAction: TurnAction = "auto"
 ): ChatResponse {
   const responseType =
     parsed.responseType ?? (parsed.isGuess ? "challenge" : parsed.isGameOver ? "result" : "question");
@@ -600,6 +619,29 @@ function sanitizeResponse(
 
   if (mode === "ai-guesses") {
     const isLateGame = actualTurnCount >= 18;
+
+    // 턴 액션 강제: 턴 18+인데 Gemini가 질문을 보냈으면 → guess가 있으면 도전으로 전환
+    if (turnAction === "challenge" && responseType === "question") {
+      if (base.guess) {
+        // guess는 있는데 질문으로 분류됨 → 도전으로 강제 전환
+        const CHALLENGE_TEMPLATES = [
+          `봉신의 도전이다. 네가 떠올린 것은 '${base.guess}'이다!`,
+          `봉신의 유리구슬이 마침내 하나의 진실을 비춘다. 네가 떠올린 것은 '${base.guess}'이다!`,
+          `크흠... 봉신의 직감이 속삭인다. 정답은 '${base.guess}'이다!`,
+        ];
+        return {
+          ...base,
+          message: CHALLENGE_TEMPLATES[Math.floor(Math.random() * CHALLENGE_TEMPLATES.length)],
+          responseType: "challenge",
+          isGuess: true,
+          isGameOver: false,
+          stage: "challenge",
+          shouldGuessNow: true,
+        };
+      }
+      // guess도 없으면 어쩔 수 없이 질문으로 통과 (프롬프트 강화로 다음엔 도전할 것)
+    }
+
     const challengeTooEarly = actualTurnCount < 8 && responseType === "challenge";
     // 턴 18+ 에서는 candidateBucket 체크 스킵 (마지막 기회이므로)
     const challengeWithoutEnoughCandidates =
@@ -669,12 +711,19 @@ function sanitizeResponse(
 export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
-    const { mode, category, messages, fixedAnswer, promptOverride, modelOverride, thinkingOverride, searchGrounding } = body;
+    const { mode, category, messages, fixedAnswer, promptOverride } = body;
 
-    const activeModel = (modelOverride && (AVAILABLE_MODELS as readonly string[]).includes(modelOverride))
-      ? modelOverride : DEFAULT_MODEL;
-    const activeThinking = (thinkingOverride && (THINKING_LEVELS as readonly string[]).includes(thinkingOverride))
-      ? thinkingOverride : getThinkingLevel(mode);
+    // 서버 측 관리자 설정 (Supabase) — 클라이언트 오버라이드보다 우선
+    const adminConfig = await getAdminConfig();
+
+    const effectiveModel = (adminConfig.model && (AVAILABLE_MODELS as readonly string[]).includes(adminConfig.model as ModelId))
+      ? adminConfig.model as ModelId : DEFAULT_MODEL;
+    const effectiveThinking = (adminConfig.thinking && (THINKING_LEVELS as readonly string[]).includes(adminConfig.thinking))
+      ? adminConfig.thinking : getThinkingLevel(mode);
+    const effectiveGrounding = adminConfig.searchGrounding ?? false;
+
+    const activeModel = effectiveModel;
+    const activeThinking = effectiveThinking;
 
     // ai-guesses 모드: 초반 5턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
     if (mode === "ai-guesses") {
@@ -702,7 +751,11 @@ export async function POST(request: Request) {
       }
     }
 
-    const systemPrompt = [basePrompt, knowledgeContext, wikiContext]
+    // 턴 기반 타입 강제 (ai-guesses 모드만)
+    const turnAction = mode === "ai-guesses" ? getTurnAction(currentTurn) : "auto" as TurnAction;
+    const turnInstruction = mode === "ai-guesses" ? buildTurnInstruction(turnAction, currentTurn) : "";
+
+    const systemPrompt = [basePrompt, knowledgeContext, wikiContext, turnInstruction]
       .filter(Boolean)
       .join("\n\n");
 
@@ -720,7 +773,7 @@ export async function POST(request: Request) {
 
     // Search Grounding: 게임당 최대 2회 (턴 5=첫 API, 턴 10=중반)
     const GROUNDING_TURNS = [5, 10];
-    const useGrounding = searchGrounding && mode === "ai-guesses" && GROUNDING_TURNS.includes(currentTurn);
+    const useGrounding = effectiveGrounding && mode === "ai-guesses" && GROUNDING_TURNS.includes(currentTurn);
     const groundingTools = useGrounding ? { tools: [{ googleSearch: {} }] } : {};
 
     const res = await fetch(getApiUrl(activeModel), {
@@ -762,7 +815,8 @@ export async function POST(request: Request) {
       category,
       actualTurnCount,
       hasRecentWrongGuess(messages),
-      messages
+      messages,
+      turnAction
     );
 
     return Response.json(sanitized);

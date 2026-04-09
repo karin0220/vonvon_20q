@@ -57,29 +57,36 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
 const AI_REVEAL_PROMPT =
   "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
 const PROMPT_OVERRIDE_STORAGE_KEY = "vonvon-prompt-overrides-v1";
-const ADMIN_SETTINGS_STORAGE_KEY = "vonvon-admin-settings-v1";
-
 interface AdminSettings {
   model: ModelId | "";
   thinking: ThinkingLevel | "";
   searchGrounding: boolean;
 }
 
-function getStoredAdminSettings(): AdminSettings {
-  if (typeof window === "undefined") return { model: "", thinking: "", searchGrounding: false };
+const ADMIN_DEFAULTS: AdminSettings = { model: "", thinking: "", searchGrounding: false };
+
+async function fetchAdminSettings(): Promise<AdminSettings> {
   try {
-    const raw = window.localStorage.getItem(ADMIN_SETTINGS_STORAGE_KEY);
-    if (!raw) return { model: "", thinking: "", searchGrounding: false };
-    const parsed = JSON.parse(raw);
-    return { model: parsed.model ?? "", thinking: parsed.thinking ?? "", searchGrounding: parsed.searchGrounding ?? false };
+    const res = await fetch("/api/admin-config");
+    if (!res.ok) return ADMIN_DEFAULTS;
+    const data = await res.json();
+    return { model: data.model ?? "", thinking: data.thinking ?? "", searchGrounding: data.searchGrounding ?? false };
   } catch {
-    return { model: "", thinking: "", searchGrounding: false };
+    return ADMIN_DEFAULTS;
   }
 }
 
-function persistAdminSettings(settings: AdminSettings) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(ADMIN_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+async function persistAdminSettings(settings: AdminSettings): Promise<boolean> {
+  try {
+    const res = await fetch("/api/admin-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 type PromptOverrideMap = Partial<Record<GameMode, string>>;
@@ -161,12 +168,13 @@ function GameContent() {
   const [adminSaved, setAdminSaved] = useState(false);
   const adminSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 어드민 설정 localStorage 복원
+  // 어드민 설정 서버에서 복원
   useEffect(() => {
-    const stored = getStoredAdminSettings();
-    setAdminModel(stored.model);
-    setAdminThinking(stored.thinking);
-    setAdminGrounding(stored.searchGrounding);
+    fetchAdminSettings().then((stored) => {
+      setAdminModel(stored.model);
+      setAdminThinking(stored.thinking);
+      setAdminGrounding(stored.searchGrounding);
+    });
   }, []);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -364,9 +372,6 @@ function GameContent() {
             messages: newHistory,
             fixedAnswer,
             promptOverride: promptOverrides[mode],
-            ...(adminModel && { modelOverride: adminModel }),
-            ...(adminThinking && { thinkingOverride: adminThinking }),
-            ...(adminGrounding && { searchGrounding: true }),
           }),
         }).finally(() => clearTimeout(timeout));
 
@@ -460,8 +465,6 @@ function GameContent() {
               messages: retryHistory,
               fixedAnswer,
               promptOverride: promptOverrides[mode],
-              ...(adminModel && { modelOverride: adminModel }),
-              ...(adminThinking && { thinkingOverride: adminThinking }),
             }),
           });
           if (!retryRes.ok) throw new Error("retry failed");
@@ -943,7 +946,7 @@ function GameContent() {
                 onChange={(e) => {
                   const v = e.target.value as ModelId | "";
                   setAdminModel(v);
-                  persistAdminSettings({ model: v, thinking: adminThinking, searchGrounding: adminGrounding }); if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
+                  persistAdminSettings({ model: v, thinking: adminThinking, searchGrounding: adminGrounding }).then((ok) => { if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), ok ? 1500 : 3000); });
                 }}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
@@ -958,7 +961,7 @@ function GameContent() {
                 onChange={(e) => {
                   const v = e.target.value as ThinkingLevel | "";
                   setAdminThinking(v);
-                  persistAdminSettings({ model: adminModel, thinking: v, searchGrounding: adminGrounding }); if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
+                  persistAdminSettings({ model: adminModel, thinking: v, searchGrounding: adminGrounding }).then((ok) => { if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), ok ? 1500 : 3000); });
                 }}
                 className="w-24 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
@@ -973,7 +976,7 @@ function GameContent() {
                   checked={adminGrounding}
                   onChange={(e) => {
                     setAdminGrounding(e.target.checked);
-                    persistAdminSettings({ model: adminModel, thinking: adminThinking, searchGrounding: e.target.checked }); if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
+                    persistAdminSettings({ model: adminModel, thinking: adminThinking, searchGrounding: e.target.checked }).then((ok) => { if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), ok ? 1500 : 3000); });
                   }}
                   className="accent-mystic w-3.5 h-3.5"
                 />

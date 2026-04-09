@@ -299,3 +299,63 @@ export async function recordSessionAndGetStats(
   const stats = rows.length ? mapKnowledgeRow(rows[0]) : null;
   return { stats, sessionId };
 }
+
+// --- 관리자 설정 (전역, Supabase 저장) ---
+
+export interface AdminGameSettings {
+  model: string;       // ModelId | ""
+  thinking: string;    // ThinkingLevel | ""
+  searchGrounding: boolean;
+}
+
+const ADMIN_CONFIG_KEY = "game_settings";
+const adminConfigCache: { value: AdminGameSettings | null; expiresAt: number } = {
+  value: null,
+  expiresAt: 0,
+};
+const ADMIN_CONFIG_CACHE_TTL_MS = 10_000; // 10초 캐시
+
+export async function getAdminConfig(): Promise<AdminGameSettings> {
+  const defaults: AdminGameSettings = { model: "", thinking: "", searchGrounding: false };
+  if (!isSupabaseConfigured()) return defaults;
+
+  const now = Date.now();
+  if (adminConfigCache.value && now < adminConfigCache.expiresAt) {
+    return adminConfigCache.value;
+  }
+
+  try {
+    const rows = await supabaseRest<{ key: string; value: AdminGameSettings }[]>(
+      `admin_config?key=eq.${ADMIN_CONFIG_KEY}&select=key,value`
+    );
+    const result = rows.length ? { ...defaults, ...rows[0].value } : defaults;
+    adminConfigCache.value = result;
+    adminConfigCache.expiresAt = now + ADMIN_CONFIG_CACHE_TTL_MS;
+    return result;
+  } catch (e) {
+    console.error("Failed to load admin config:", e);
+    return defaults;
+  }
+}
+
+export async function setAdminConfig(settings: AdminGameSettings): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+
+  try {
+    await supabaseRest(
+      `admin_config?key=eq.${ADMIN_CONFIG_KEY}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ value: settings, updated_at: new Date().toISOString() }),
+        headers: { Prefer: "return=minimal" },
+      }
+    );
+    // 캐시 즉시 갱신
+    adminConfigCache.value = settings;
+    adminConfigCache.expiresAt = Date.now() + ADMIN_CONFIG_CACHE_TTL_MS;
+    return true;
+  } catch (e) {
+    console.error("Failed to save admin config:", e);
+    return false;
+  }
+}
