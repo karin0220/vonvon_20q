@@ -2,6 +2,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 import { ChatRequest, ChatResponse, ModelId, AVAILABLE_MODELS, THINKING_LEVELS } from "@/lib/types";
 import { getKnowledgeContext, getAdminConfig, getPromptOverrides } from "@/lib/supabase";
 import { lookupWiki, extractSearchQuery } from "@/lib/wiki";
+import { getTreeResponse, buildAnswerPath, buildFactSummary } from "@/lib/question-tree";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
 const DEFAULT_MODEL: ModelId = "gemini-3.1-flash-lite-preview";
@@ -729,12 +730,11 @@ export async function POST(request: Request) {
     const activeModel = effectiveModel;
     const activeThinking = effectiveThinking;
 
-    // ai-guesses 모드: 초반 5턴은 서버 하드코딩 질문 반환 (API 호출 절약 + 품질 보장)
+    // ai-guesses 모드: 초반 6턴은 결정 트리로 처리 (API 호출 절약 + 효율적 분기)
     if (mode === "ai-guesses") {
-      const actualTurnCount = getActualTurnCount(messages);
-      const openingResponse = getOpeningResponse(category, actualTurnCount, messages);
-      if (openingResponse) {
-        return Response.json(openingResponse);
+      const treeResponse = getTreeResponse(category, messages);
+      if (treeResponse) {
+        return Response.json(treeResponse);
       }
     }
 
@@ -755,11 +755,18 @@ export async function POST(request: Request) {
       }
     }
 
+    // 트리에서 축적된 팩트 요약 (ai-guesses만)
+    let treeFactContext = "";
+    if (mode === "ai-guesses") {
+      const { path } = buildAnswerPath(messages);
+      treeFactContext = buildFactSummary(category, path);
+    }
+
     // 턴 기반 타입 강제 (ai-guesses 모드만)
     const turnAction = mode === "ai-guesses" ? getTurnAction(currentTurn) : "auto" as TurnAction;
     const turnInstruction = mode === "ai-guesses" ? buildTurnInstruction(turnAction, currentTurn) : "";
 
-    const systemPrompt = [basePrompt, knowledgeContext, wikiContext, turnInstruction]
+    const systemPrompt = [basePrompt, knowledgeContext, wikiContext, treeFactContext, turnInstruction]
       .filter(Boolean)
       .join("\n\n");
 
@@ -775,8 +782,8 @@ export async function POST(request: Request) {
 
     const thinkingConfig = activeThinking === "none" ? {} : { thinkingConfig: { thinkingLevel: activeThinking } };
 
-    // Search Grounding: 게임당 최대 2회 (턴 5=첫 API, 턴 10=중반)
-    const GROUNDING_TURNS = [5, 10];
+    // Search Grounding: 게임당 최대 2회 (턴 8=첫 API 자율구간, 턴 13=중반)
+    const GROUNDING_TURNS = [8, 13];
     const useGrounding = effectiveGrounding && mode === "ai-guesses" && GROUNDING_TURNS.includes(currentTurn);
     const groundingTools = useGrounding ? { tools: [{ googleSearch: {} }] } : {};
 
