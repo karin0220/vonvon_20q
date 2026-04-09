@@ -9,6 +9,16 @@ const CATEGORY_HINTS: Record<string, string> = {
   "전체": "유명인, 캐릭터, 영화, 드라마, 노래 등 모든 카테고리",
 };
 
+// 카테고리별 정답이 무엇이어야 하는지 명시
+const CATEGORY_ANSWER_TYPE: Record<string, string> = {
+  "유명인": "실존 인물 이름",
+  "캐릭터": "가상 캐릭터 이름",
+  "영화": "영화 제목",
+  "드라마": "드라마 제목",
+  "노래": "노래 제목 (가수 이름이 아닌 곡 제목)",
+  "전체": "유명인 이름, 캐릭터 이름, 또는 작품 제목",
+};
+
 const DEFAULT_PROMPT_TEMPLATES: Record<GameMode, string> = {
   "ai-guesses": `너는 "봉신"이라는 이름의 신비로운 점쟁이 캐릭터야.
 유리구슬로 상대의 마음을 읽는 능력이 있어.
@@ -177,9 +187,10 @@ export function getSystemPrompt(
   overrideTemplate?: string
 ): string {
   const hint = getCategoryHint(category);
+  const answerType = CATEGORY_ANSWER_TYPE[category] || "하나";
   const answerInstruction = fixedAnswer
     ? `- 봉신이 떠올린 정답은 반드시 "${fixedAnswer}"이다. 절대 다른 것을 고르지 마.`
-    : `- 게임 시작 시 "${category}" 카테고리에서 하나를 골라 (유명하고 재미있는 걸로)`;
+    : `- 게임 시작 시 "${category}" 카테고리에서 ${answerType}을(를) 하나 골라 (유명하고 재미있는 걸로). 반드시 ${answerType}이어야 한다.`;
 
   const template = overrideTemplate || getDefaultPromptTemplate(mode);
 

@@ -49,9 +49,13 @@ function HomeContent() {
     };
   }, []);
 
-  const marqueeItems = recentPlays.length
+  const rawMarqueeItems = recentPlays.length
     ? recentPlays.map((item) => `${item.category} · ${item.answer} (${item.turnCount}턴)`)
     : RECENT_ANSWERS;
+  // 최소 8개 항목이 되도록 반복 — 적은 데이터에서 전광판 빈틈 방지
+  const marqueeItems = rawMarqueeItems.length >= 8
+    ? rawMarqueeItems
+    : Array.from({ length: Math.ceil(8 / rawMarqueeItems.length) }, () => rawMarqueeItems).flat().slice(0, 8);
 
   function startGame(category: string) {
     setStarting(true);
