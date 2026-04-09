@@ -732,16 +732,15 @@ export async function POST(request: Request) {
     const knowledgeContext =
       mode === "ai-guesses" ? await getKnowledgeContext(category) : "";
 
-    // 위키 조회: ai-guesses 모드에서 턴 7, 11, 15에 실행 (다음 턴 8, 12, 16에 반영)
-    const WIKI_TURNS = [7, 11, 15];
+    // 위키 조회: ai-guesses 모드에서 턴 6부터 매 3턴마다 실행
     const currentTurn = getActualTurnCount(messages);
     let wikiContext = "";
-    if (mode === "ai-guesses" && WIKI_TURNS.includes(currentTurn)) {
+    if (mode === "ai-guesses" && currentTurn >= 6 && currentTurn % 3 === 0) {
       const searchQuery = extractSearchQuery(messages, category);
       if (searchQuery) {
         const wikiResult = await lookupWiki(searchQuery);
         if (wikiResult) {
-          wikiContext = `\n\n[참고: 위키 검색 결과 — "${searchQuery}"]\n${wikiResult}\n위 정보는 참고용이다. 대화 흐름과 유저 답변을 최우선으로 하되, 최신 정보가 필요할 때 활용해라.`;
+          wikiContext = `\n\n[중요: 위키백과 최신 정보 — "${searchQuery}"]\n${wikiResult}\n\n위 정보는 네 학습 데이터보다 최신이다. 네 기존 지식과 위키 정보가 충돌하면 위키 정보를 우선해라. 예를 들어 네가 알던 현직 대통령/수상/리더와 위키 정보가 다르면 위키가 맞다.`;
         }
       }
     }

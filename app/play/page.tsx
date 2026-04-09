@@ -437,17 +437,82 @@ function GameContent() {
 
         return updatedHistory;
       } catch {
-        setAwaitingGuessConfirmation(false);
-        // 에러 시에도 턴 소비하지 않음 (재시도 가능하도록)
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "bongshin",
-            content: "유리구슬에 금이 갔다... 다시 질문해봐",
-            responseType: "question",
-          },
-        ]);
-        return currentHistory;
+        // 1회 자동 재시도
+        try {
+          const retryHistory = [
+            ...currentHistory,
+            { role: "user" as const, content: userMessage },
+          ];
+          const retryRes = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(20000),
+            body: JSON.stringify({
+              mode,
+              category,
+              messages: retryHistory,
+              fixedAnswer,
+              promptOverride: promptOverrides[mode],
+              ...(adminModel && { modelOverride: adminModel }),
+              ...(adminThinking && { thinkingOverride: adminThinking }),
+            }),
+          });
+          if (!retryRes.ok) throw new Error("retry failed");
+          const retryData: ChatResponse = await retryRes.json();
+          const retryType = resolveResponseType(retryData, mode);
+          const retryUpdatedHistory = [
+            ...retryHistory,
+            { role: "model" as const, content: retryData.message, responseType: retryType },
+          ];
+          setHistory(retryUpdatedHistory);
+          if (!isInit) {
+            const nextTurn = turnCountRef.current + 1;
+            turnCountRef.current = nextTurn;
+            setTurnCount(nextTurn);
+          }
+          if (retryData.guess) setFinalAnswer(retryData.guess);
+          const shouldForceAiReveal =
+            mode === "ai-guesses" && !isInit && (turnCountRef.current) >= 20 && retryType !== "challenge";
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "bongshin" as const,
+              content: shouldForceAiReveal ? AI_REVEAL_PROMPT : retryData.message,
+              suggestedQuestions: retryData.suggestedQuestions || undefined,
+              isGuess: retryType === "challenge",
+              responseType: shouldForceAiReveal ? "result" : retryType,
+            },
+          ]);
+          if (mode === "ai-guesses") {
+            setAwaitingGuessConfirmation(shouldForceAiReveal ? false : retryType === "challenge");
+          }
+          if (mode === "user-guesses" && retryData.isGameOver) {
+            setGameOver(true);
+            setCompletedOutcome("solved");
+          }
+          if (shouldForceAiReveal) {
+            setGameOver(true);
+            setShowReveal(true);
+          }
+          return retryUpdatedHistory;
+        } catch {
+          // 재시도도 실패 — 유저의 마지막 응답을 취소하고 다시 시도하도록
+          setAwaitingGuessConfirmation(false);
+          setMessages((prev) => {
+            // 마지막 유저 메시지를 제거 (없던 걸로)
+            const lastUserIdx = prev.findLastIndex((m) => m.role === "user");
+            const cleaned = lastUserIdx >= 0 ? prev.filter((_, i) => i !== lastUserIdx) : prev;
+            return [
+              ...cleaned,
+              {
+                role: "bongshin",
+                content: "유리구슬에 금이 갔다... 다시 답해줘",
+                responseType: "question",
+              },
+            ];
+          });
+          return currentHistory;
+        }
       } finally {
         setLoading(false);
       }
