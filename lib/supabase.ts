@@ -359,3 +359,56 @@ export async function setAdminConfig(settings: AdminGameSettings): Promise<boole
     return false;
   }
 }
+
+// --- 프롬프트 오버라이드 (전역, Supabase 저장) ---
+
+export type PromptOverrides = Partial<Record<string, string>>; // { "ai-guesses": "...", "user-guesses": "..." }
+
+const PROMPT_OVERRIDES_KEY = "prompt_overrides";
+const promptOverridesCache: { value: PromptOverrides | null; expiresAt: number } = {
+  value: null,
+  expiresAt: 0,
+};
+
+export async function getPromptOverrides(): Promise<PromptOverrides> {
+  if (!isSupabaseConfigured()) return {};
+
+  const now = Date.now();
+  if (promptOverridesCache.value !== null && now < promptOverridesCache.expiresAt) {
+    return promptOverridesCache.value;
+  }
+
+  try {
+    const rows = await supabaseRest<{ key: string; value: PromptOverrides }[]>(
+      `admin_config?key=eq.${PROMPT_OVERRIDES_KEY}&select=key,value`
+    );
+    const result = rows.length ? rows[0].value ?? {} : {};
+    promptOverridesCache.value = result;
+    promptOverridesCache.expiresAt = now + ADMIN_CONFIG_CACHE_TTL_MS;
+    return result;
+  } catch (e) {
+    console.error("Failed to load prompt overrides:", e);
+    return {};
+  }
+}
+
+export async function setPromptOverrides(overrides: PromptOverrides): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+
+  try {
+    await supabaseRest(
+      `admin_config?key=eq.${PROMPT_OVERRIDES_KEY}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ value: overrides, updated_at: new Date().toISOString() }),
+        headers: { Prefer: "return=minimal" },
+      }
+    );
+    promptOverridesCache.value = overrides;
+    promptOverridesCache.expiresAt = Date.now() + ADMIN_CONFIG_CACHE_TTL_MS;
+    return true;
+  } catch (e) {
+    console.error("Failed to save prompt overrides:", e);
+    return false;
+  }
+}

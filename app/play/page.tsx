@@ -56,7 +56,6 @@ function getTeasingMessage(userTurns: number, avgTurns: number): string {
 
 const AI_REVEAL_PROMPT =
   "크흠... 봉신의 유리구슬이 흐려졌다. 이번은 네 승리다. 정답이 무엇이었는지 알려주겠느냐?";
-const PROMPT_OVERRIDE_STORAGE_KEY = "vonvon-prompt-overrides-v1";
 interface AdminSettings {
   model: ModelId | "";
   thinking: ThinkingLevel | "";
@@ -94,29 +93,31 @@ type SessionOutcome = "solved" | "failed" | "ai_correct" | "revealed";
 
 function resolveResponseType(data: ChatResponse, mode: GameMode): BongshinResponseType {
   if (data.responseType) return data.responseType;
-  // user-guesses 모드에서는 challenge가 없음 — isGuess는 정답 확인이므로 result
   if (mode === "user-guesses") return data.isGuess ? "result" : "question";
   return data.isGuess ? "challenge" : "question";
 }
 
-function getStoredPromptOverrides(): PromptOverrideMap {
-  if (typeof window === "undefined") return {};
+async function fetchPromptOverrides(): Promise<PromptOverrideMap> {
   try {
-    const raw = window.localStorage.getItem(PROMPT_OVERRIDE_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as PromptOverrideMap;
-    return parsed ?? {};
+    const res = await fetch("/api/admin-config?type=prompts");
+    if (!res.ok) return {};
+    return await res.json();
   } catch {
     return {};
   }
 }
 
-function persistPromptOverrides(overrides: PromptOverrideMap) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    PROMPT_OVERRIDE_STORAGE_KEY,
-    JSON.stringify(overrides)
-  );
+async function persistPromptOverrides(overrides: PromptOverrideMap): Promise<boolean> {
+  try {
+    const res = await fetch("/api/admin-config?type=prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(overrides),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 function GameContent() {
@@ -203,15 +204,16 @@ function GameContent() {
   }, [bootstrapping]);
 
   useEffect(() => {
-    const stored = getStoredPromptOverrides();
-    setPromptOverrides(stored);
-    setPromptDrafts({
-      "ai-guesses":
-        stored["ai-guesses"] || getDefaultPromptTemplate("ai-guesses"),
-      "user-guesses":
-        stored["user-guesses"] || getDefaultPromptTemplate("user-guesses"),
+    fetchPromptOverrides().then((stored) => {
+      setPromptOverrides(stored);
+      setPromptDrafts({
+        "ai-guesses":
+          stored["ai-guesses"] || getDefaultPromptTemplate("ai-guesses"),
+        "user-guesses":
+          stored["user-guesses"] || getDefaultPromptTemplate("user-guesses"),
+      });
+      setPromptConfigReady(true);
     });
-    setPromptConfigReady(true);
   }, []);
 
   useEffect(() => {
@@ -371,7 +373,6 @@ function GameContent() {
             category,
             messages: newHistory,
             fixedAnswer,
-            promptOverride: promptOverrides[mode],
           }),
         }).finally(() => clearTimeout(timeout));
 
@@ -464,7 +465,6 @@ function GameContent() {
               category,
               messages: retryHistory,
               fixedAnswer,
-              promptOverride: promptOverrides[mode],
             }),
           });
           if (!retryRes.ok) throw new Error("retry failed");
@@ -527,7 +527,7 @@ function GameContent() {
         setLoading(false);
       }
     },
-    [mode, category, fixedAnswer, promptOverrides]
+    [mode, category, fixedAnswer]
   );
 
   useEffect(() => {
@@ -750,17 +750,22 @@ function GameContent() {
       [promptEditorMode]: promptDrafts[promptEditorMode],
     };
     setPromptOverrides(nextOverrides);
-    persistPromptOverrides(nextOverrides);
-    if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current);
-    setAdminSaved(true);
-    adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
+    persistPromptOverrides(nextOverrides).then((ok) => {
+      if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current);
+      setAdminSaved(true);
+      adminSavedTimer.current = setTimeout(() => setAdminSaved(false), ok ? 1500 : 3000);
+    });
   }
 
   function handleResetPromptTemplate() {
     const nextOverrides: PromptOverrideMap = { ...promptOverrides };
     delete nextOverrides[promptEditorMode];
     setPromptOverrides(nextOverrides);
-    persistPromptOverrides(nextOverrides);
+    persistPromptOverrides(nextOverrides).then((ok) => {
+      if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current);
+      setAdminSaved(true);
+      adminSavedTimer.current = setTimeout(() => setAdminSaved(false), ok ? 1500 : 3000);
+    });
     setPromptDrafts((prev) => ({
       ...prev,
       [promptEditorMode]: getDefaultPromptTemplate(promptEditorMode),

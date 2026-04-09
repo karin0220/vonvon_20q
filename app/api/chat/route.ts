@@ -1,6 +1,6 @@
 import { getSystemPrompt } from "@/lib/prompts";
 import { ChatRequest, ChatResponse, ModelId, AVAILABLE_MODELS, THINKING_LEVELS } from "@/lib/types";
-import { getKnowledgeContext, getAdminConfig } from "@/lib/supabase";
+import { getKnowledgeContext, getAdminConfig, getPromptOverrides } from "@/lib/supabase";
 import { lookupWiki, extractSearchQuery } from "@/lib/wiki";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
@@ -711,10 +711,14 @@ function sanitizeResponse(
 export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
-    const { mode, category, messages, fixedAnswer, promptOverride } = body;
+    const { mode, category, messages, fixedAnswer } = body;
 
     // 서버 측 관리자 설정 (Supabase) — 클라이언트 오버라이드보다 우선
-    const adminConfig = await getAdminConfig();
+    const [adminConfig, serverPromptOverrides] = await Promise.all([
+      getAdminConfig(),
+      getPromptOverrides(),
+    ]);
+    const promptOverride = serverPromptOverrides[mode] || undefined;
 
     const effectiveModel = (adminConfig.model && (AVAILABLE_MODELS as readonly string[]).includes(adminConfig.model as ModelId))
       ? adminConfig.model as ModelId : DEFAULT_MODEL;
