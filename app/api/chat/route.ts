@@ -610,10 +610,12 @@ function sanitizeResponse(
     const challengeDuringCooldown =
       hadRecentWrongGuess && responseType === "challenge" && actualTurnCount < 16;
     const challengeWithoutGuess = responseType === "challenge" && !base.guess;
-    // 메시지가 ?로 끝나면 실제로는 질문이지 도전이 아님
+    // 메시지가 ?로 끝나고 guess도 없으면 실제로는 질문이지 도전이 아님
+    // (guess가 유효하면 메시지 형태 무관 — 어차피 메시지는 서버에서 재구성함)
     const msgTrimmed = base.message.trim();
     const challengeIsActuallyQuestion =
       responseType === "challenge" &&
+      !base.guess &&
       (msgTrimmed.endsWith("?") || msgTrimmed.endsWith("?"));
     // guess가 일반명사(나라, 장르 등)이면 진짜 정답이 아님
     const GENERIC_GUESSES = /^(미국|한국|일본|중국|남자|여자|가수|배우|아이돌|영화|드라마|노래|애니|만화|액션|로맨스|코미디|발라드|댄스|힙합|인간|동물)$/;
