@@ -751,6 +751,9 @@ function GameContent() {
     };
     setPromptOverrides(nextOverrides);
     persistPromptOverrides(nextOverrides);
+    if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current);
+    setAdminSaved(true);
+    adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
   }
 
   function handleResetPromptTemplate() {
@@ -936,10 +939,19 @@ function GameContent() {
               </div>
             </div>
 
+            {adminSaved && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none" style={{ animation: "adminToastFade 1.5s ease-in-out forwards" }}>
+                <div className="rounded-2xl bg-black/80 px-8 py-4 text-sm font-semibold text-white shadow-lg backdrop-blur-sm" style={{ animation: "adminToastScale 0.2s ease-out forwards" }}>
+                  저장됨
+                </div>
+                <style>{`
+                  @keyframes adminToastFade { 0% { opacity: 0; } 10% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+                  @keyframes adminToastScale { 0% { transform: scale(0.8); } 100% { transform: scale(1); } }
+                `}</style>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2 relative">
-              {adminSaved && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-mystic animate-pulse">저장됨</span>
-              )}
               <span className="text-[10px] text-text-dim">모델</span>
               <select
                 value={adminModel}
