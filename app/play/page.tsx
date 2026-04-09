@@ -341,6 +341,7 @@ function GameContent() {
           { role: "user" as const, content: userMessage },
         ];
         const nextTurnCount = isInit ? 0 : turnCountRef.current + 1;
+        const fetchStart = Date.now();
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
@@ -363,6 +364,14 @@ function GameContent() {
         if (!res.ok) throw new Error("API error");
 
         const data: ChatResponse = await res.json();
+
+        // 응답이 너무 빠르면 (하드코딩 오프닝 등) 자연스러운 딜레이 추가
+        const elapsed = Date.now() - fetchStart;
+        const minDelay = mode === "ai-guesses" ? 1800 : 1200;
+        if (elapsed < minDelay) {
+          await new Promise((r) => setTimeout(r, minDelay - elapsed));
+        }
+
         const responseType = resolveResponseType(data, mode);
 
         const updatedHistory = [
@@ -1046,7 +1055,7 @@ function GameContent() {
                 </p>
               ) : (
                 <div className="flex gap-2 justify-center">
-                  {["응, 맞아", "아니", "모르겠어"].map((answer) => (
+                  {["응, 맞아", "아니", "애매해", "모르겠어"].map((answer) => (
                     <button
                       key={answer}
                       onClick={() => handleUserResponse(answer)}
