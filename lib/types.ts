@@ -29,6 +29,7 @@ export interface ChatRequest {
   promptOverride?: string;
   modelOverride?: ModelId;
   thinkingOverride?: ThinkingLevel;
+  searchGrounding?: boolean;
 }
 
 export interface ChatResponse {

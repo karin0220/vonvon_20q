@@ -667,7 +667,7 @@ function sanitizeResponse(
 export async function POST(request: Request) {
   try {
     const body: ChatRequest = await request.json();
-    const { mode, category, messages, fixedAnswer, promptOverride, modelOverride, thinkingOverride } = body;
+    const { mode, category, messages, fixedAnswer, promptOverride, modelOverride, thinkingOverride, searchGrounding } = body;
 
     const activeModel = (modelOverride && (AVAILABLE_MODELS as readonly string[]).includes(modelOverride))
       ? modelOverride : DEFAULT_MODEL;
@@ -716,6 +716,11 @@ export async function POST(request: Request) {
 
     const thinkingConfig = activeThinking === "none" ? {} : { thinkingConfig: { thinkingLevel: activeThinking } };
 
+    // Search Grounding: 게임당 최대 2회 (턴 5=첫 API, 턴 10=중반)
+    const GROUNDING_TURNS = [5, 10];
+    const useGrounding = searchGrounding && mode === "ai-guesses" && GROUNDING_TURNS.includes(currentTurn);
+    const groundingTools = useGrounding ? { tools: [{ googleSearch: {} }] } : {};
+
     const res = await fetch(getApiUrl(activeModel), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -723,6 +728,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents,
+        ...groundingTools,
         generationConfig: {
           responseMimeType: "application/json",
           responseJsonSchema: RESPONSE_SCHEMA,

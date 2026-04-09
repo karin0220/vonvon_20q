@@ -62,16 +62,18 @@ const ADMIN_SETTINGS_STORAGE_KEY = "vonvon-admin-settings-v1";
 interface AdminSettings {
   model: ModelId | "";
   thinking: ThinkingLevel | "";
+  searchGrounding: boolean;
 }
 
 function getStoredAdminSettings(): AdminSettings {
-  if (typeof window === "undefined") return { model: "", thinking: "" };
+  if (typeof window === "undefined") return { model: "", thinking: "", searchGrounding: false };
   try {
     const raw = window.localStorage.getItem(ADMIN_SETTINGS_STORAGE_KEY);
-    if (!raw) return { model: "", thinking: "" };
-    return JSON.parse(raw) as AdminSettings;
+    if (!raw) return { model: "", thinking: "", searchGrounding: false };
+    const parsed = JSON.parse(raw);
+    return { model: parsed.model ?? "", thinking: parsed.thinking ?? "", searchGrounding: parsed.searchGrounding ?? false };
   } catch {
-    return { model: "", thinking: "" };
+    return { model: "", thinking: "", searchGrounding: false };
   }
 }
 
@@ -155,12 +157,14 @@ function GameContent() {
   });
   const [adminModel, setAdminModel] = useState<ModelId | "">(""); // "" = 기본값 사용
   const [adminThinking, setAdminThinking] = useState<ThinkingLevel | "">(""); // "" = 기본값 사용
+  const [adminGrounding, setAdminGrounding] = useState(false);
 
   // 어드민 설정 localStorage 복원
   useEffect(() => {
     const stored = getStoredAdminSettings();
     setAdminModel(stored.model);
     setAdminThinking(stored.thinking);
+    setAdminGrounding(stored.searchGrounding);
   }, []);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -360,6 +364,7 @@ function GameContent() {
             promptOverride: promptOverrides[mode],
             ...(adminModel && { modelOverride: adminModel }),
             ...(adminThinking && { thinkingOverride: adminThinking }),
+            ...(adminGrounding && { searchGrounding: true }),
           }),
         }).finally(() => clearTimeout(timeout));
 
@@ -933,7 +938,7 @@ function GameContent() {
                 onChange={(e) => {
                   const v = e.target.value as ModelId | "";
                   setAdminModel(v);
-                  persistAdminSettings({ model: v, thinking: adminThinking });
+                  persistAdminSettings({ model: v, thinking: adminThinking, searchGrounding: adminGrounding });
                 }}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
@@ -948,7 +953,7 @@ function GameContent() {
                 onChange={(e) => {
                   const v = e.target.value as ThinkingLevel | "";
                   setAdminThinking(v);
-                  persistAdminSettings({ model: adminModel, thinking: v });
+                  persistAdminSettings({ model: adminModel, thinking: v, searchGrounding: adminGrounding });
                 }}
                 className="w-24 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
@@ -957,6 +962,18 @@ function GameContent() {
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
+              <label className="flex items-center gap-1.5 ml-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={adminGrounding}
+                  onChange={(e) => {
+                    setAdminGrounding(e.target.checked);
+                    persistAdminSettings({ model: adminModel, thinking: adminThinking, searchGrounding: e.target.checked });
+                  }}
+                  className="accent-mystic w-3.5 h-3.5"
+                />
+                <span className="text-[10px] text-text-dim">Search Grounding</span>
+              </label>
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
