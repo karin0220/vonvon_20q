@@ -581,40 +581,88 @@ function countPreviousChallenges(messages: ChatRequest["messages"]) {
   ).length;
 }
 
-function buildFallbackQuestion(category: string, turnCount: number): string {
-  // 5턴까지는 하드코딩 오프닝이 담당하므로, fallback은 6턴 이후부터 의미 있음
-  switch (category) {
-    case "유명인":
-      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 인물은 가수냐?";
-      if (turnCount <= 10) return "흠... 그 인물은 TV 예능에 자주 나오는 사람이냐?";
-      if (turnCount <= 14) return "크흠... 그 인물은 아이돌 출신이냐?";
-      return "자... 그 인물은 SNS 팔로워가 수백만인 자냐?";
-    case "캐릭터":
-      if (turnCount <= 7) return "크흠... 그 캐릭터는 인간형 존재냐?";
-      if (turnCount <= 10) return "봉신의 구슬이 묻는다. 그 캐릭터는 특수한 힘을 가졌느냐?";
-      if (turnCount <= 14) return "흠... 그 캐릭터는 학생이냐?";
-      return "자... 그 캐릭터의 작품은 애니메이션화가 됐느냐?";
-    case "영화":
-      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 영화에 속편이 있느냐?";
-      if (turnCount <= 10) return "크흠... 그 영화의 장르가 코미디냐?";
-      if (turnCount <= 14) return "흠... 그 영화에 천만 관객이 들었느냐?";
-      return "자... 그 영화에 유명 배우가 주연으로 나오느냐?";
-    case "드라마":
-      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 드라마는 16부작 이상이냐?";
-      if (turnCount <= 10) return "크흠... 그 드라마에 판타지 요소가 있느냐?";
-      if (turnCount <= 14) return "흠... 그 드라마의 주인공이 남자냐?";
-      return "자... 그 드라마는 해외에서도 유명해진 작품이냐?";
-    case "노래":
-      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그 노래는 발라드냐?";
-      if (turnCount <= 10) return "크흠... 그 노래의 뮤직비디오 조회수가 1억 이상이냐?";
-      if (turnCount <= 14) return "흠... 그 노래는 드라마나 영화 OST냐?";
-      return "자... 그 노래를 부른 가수가 아이돌이냐?";
-    default:
-      if (turnCount <= 7) return "봉신의 구슬이 묻는다. 그것은 음악과 관련이 있느냐?";
-      if (turnCount <= 10) return "크흠... 그것은 대중적으로 매우 유명한 것이냐?";
-      if (turnCount <= 14) return "크흠... 그것은 2010년 이후에 나온 것이냐?";
-      return "자... 그것은 사람이 만든 것이냐?";
+// 카테고리별 fallback 질문 풀 — 도전 필터링 시 대체 질문으로 사용
+const FALLBACK_POOLS: Record<string, string[]> = {
+  "유명인": [
+    "봉신의 구슬이 묻는다. 그 인물은 가수냐?",
+    "흠... 그 인물은 TV 예능에 자주 나오는 사람이냐?",
+    "크흠... 그 인물은 정치인이냐?",
+    "자... 그 인물은 운동선수냐?",
+    "오호... 그 인물은 배우냐?",
+    "크흠... 그 인물은 40대 이상이냐?",
+    "흠... 그 인물은 최근 5년 안에 큰 논란이 있었느냐?",
+    "봉신의 구슬이 묻는다. 그 인물은 해외에서도 유명하냐?",
+    "자... 그 인물은 SNS 팔로워가 수백만인 자냐?",
+    "크흠... 그 인물은 사업가 출신이냐?",
+  ],
+  "캐릭터": [
+    "크흠... 그 캐릭터는 인간형 존재냐?",
+    "봉신의 구슬이 묻는다. 그 캐릭터는 특수한 힘을 가졌느냐?",
+    "흠... 그 캐릭터는 학생이냐?",
+    "자... 그 캐릭터의 작품은 애니메이션화가 됐느냐?",
+    "크흠... 그 캐릭터는 주인공이냐?",
+    "오호... 그 캐릭터는 악역이냐?",
+    "흠... 그 캐릭터가 등장한 작품이 시리즈물이냐?",
+  ],
+  "영화": [
+    "봉신의 구슬이 묻는다. 그 영화에 속편이 있느냐?",
+    "크흠... 그 영화의 장르가 코미디냐?",
+    "흠... 그 영화에 천만 관객이 들었느냐?",
+    "자... 그 영화에 유명 배우가 주연으로 나오느냐?",
+    "크흠... 그 영화는 실화를 바탕으로 했느냐?",
+    "오호... 그 영화는 수상 경력이 있느냐?",
+    "흠... 그 영화는 2시간이 넘느냐?",
+  ],
+  "드라마": [
+    "봉신의 구슬이 묻는다. 그 드라마는 16부작 이상이냐?",
+    "크흠... 그 드라마에 판타지 요소가 있느냐?",
+    "흠... 그 드라마의 주인공이 남자냐?",
+    "자... 그 드라마는 해외에서도 유명해진 작품이냐?",
+    "크흠... 그 드라마는 시즌제냐?",
+    "오호... 그 드라마의 원작이 웹소설이나 만화냐?",
+    "흠... 그 드라마에 로맨스가 메인이냐?",
+  ],
+  "노래": [
+    "봉신의 구슬이 묻는다. 그 노래는 발라드냐?",
+    "크흠... 그 노래의 뮤직비디오 조회수가 1억 이상이냐?",
+    "흠... 그 노래는 드라마나 영화 OST냐?",
+    "자... 그 노래를 부른 가수가 그룹이냐?",
+    "크흠... 그 노래는 영어 가사가 포함돼 있느냐?",
+    "오호... 그 노래는 댄스곡이냐?",
+    "흠... 그 노래는 올해 나온 곡이냐?",
+  ],
+  "전체": [
+    "봉신의 구슬이 묻는다. 그것은 음악과 관련이 있느냐?",
+    "크흠... 그것은 대중적으로 매우 유명한 것이냐?",
+    "크흠... 그것은 2010년 이후에 나온 것이냐?",
+    "자... 그것은 사람이 만든 것이냐?",
+    "오호... 그것은 화면(영상)으로 접하는 것이냐?",
+    "흠... 그것은 한국에서 만들어진 것이냐?",
+  ],
+};
+
+// 이전에 사용된 fallback 질문을 대화에서 추출하여 중복 방지
+function buildFallbackQuestion(category: string, turnCount: number, messages?: ChatRequest["messages"]): string {
+  const pool = FALLBACK_POOLS[category] || FALLBACK_POOLS["전체"];
+
+  // 이미 대화에 등장한 질문 제외
+  const usedQuestions = new Set<string>();
+  if (messages) {
+    for (const msg of messages) {
+      if (msg.role === "model") {
+        usedQuestions.add(msg.content.trim());
+      }
+    }
   }
+
+  const available = pool.filter((q) => !usedQuestions.has(q));
+  if (available.length === 0) {
+    // 전부 소진됐으면 일반적인 질문
+    return "크흠... 봉신의 구슬이 다른 방향을 비춘다. 좀 더 생각해봐야겠군.";
+  }
+
+  // 턴 수를 시드로 사용해서 어느 정도 결정적이되, 같은 턴이면 같은 질문
+  return available[turnCount % available.length];
 }
 
 function sanitizeResponse(
@@ -683,7 +731,7 @@ function sanitizeResponse(
     ) {
       return {
         ...base,
-        message: buildFallbackQuestion(category, actualTurnCount),
+        message: buildFallbackQuestion(category, actualTurnCount, messages),
         responseType: "question",
         isGuess: false,
         guess: null,
