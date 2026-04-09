@@ -158,6 +158,8 @@ function GameContent() {
   const [adminModel, setAdminModel] = useState<ModelId | "">(""); // "" = 기본값 사용
   const [adminThinking, setAdminThinking] = useState<ThinkingLevel | "">(""); // "" = 기본값 사용
   const [adminGrounding, setAdminGrounding] = useState(false);
+  const [adminSaved, setAdminSaved] = useState(false);
+  const adminSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 어드민 설정 localStorage 복원
   useEffect(() => {
@@ -931,14 +933,17 @@ function GameContent() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2">
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2 relative">
+              {adminSaved && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-mystic animate-pulse">저장됨</span>
+              )}
               <span className="text-[10px] text-text-dim">모델</span>
               <select
                 value={adminModel}
                 onChange={(e) => {
                   const v = e.target.value as ModelId | "";
                   setAdminModel(v);
-                  persistAdminSettings({ model: v, thinking: adminThinking, searchGrounding: adminGrounding });
+                  persistAdminSettings({ model: v, thinking: adminThinking, searchGrounding: adminGrounding }); if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
                 }}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
@@ -953,7 +958,7 @@ function GameContent() {
                 onChange={(e) => {
                   const v = e.target.value as ThinkingLevel | "";
                   setAdminThinking(v);
-                  persistAdminSettings({ model: adminModel, thinking: v, searchGrounding: adminGrounding });
+                  persistAdminSettings({ model: adminModel, thinking: v, searchGrounding: adminGrounding }); if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
                 }}
                 className="w-24 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-mystic/50"
               >
@@ -968,7 +973,7 @@ function GameContent() {
                   checked={adminGrounding}
                   onChange={(e) => {
                     setAdminGrounding(e.target.checked);
-                    persistAdminSettings({ model: adminModel, thinking: adminThinking, searchGrounding: e.target.checked });
+                    persistAdminSettings({ model: adminModel, thinking: adminThinking, searchGrounding: e.target.checked }); if (adminSavedTimer.current) clearTimeout(adminSavedTimer.current); setAdminSaved(true); adminSavedTimer.current = setTimeout(() => setAdminSaved(false), 1500);
                   }}
                   className="accent-mystic w-3.5 h-3.5"
                 />
