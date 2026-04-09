@@ -30,13 +30,13 @@ const SUGGESTED_SETS: Record<string, string[][]> = {
   ],
   "노래": [
     ["한국 노래야?", "남자가 불렀어?", "댄스곡이야?"],
-    ["솔로 가수야?", "2020년 이후 곡이야?", "발라드야?"],
-    ["아이돌 그룹이야?", "OST야?", "영어 노래야?"],
+    ["솔로 가수가 불렀어?", "2020년 이후 곡이야?", "발라드야?"],
+    ["아이돌 그룹 노래야?", "OST야?", "영어 노래야?"],
   ],
   "전체": [
     ["사람이야?", "한국 거야?", "2010년 이후에 나온 거야?"],
     ["영상 콘텐츠야?", "실존 인물이야?", "지금도 인기 있어?"],
-    ["노래야?", "남자야?", "작품(영화/드라마/애니)이야?"],
+    ["노래야?", "남성과 관련 있어?", "작품(영화/드라마/애니)이야?"],
   ],
 };
 
@@ -1147,7 +1147,32 @@ function GameContent() {
 
             <div className="flex gap-2 justify-center">
               <button
-                onClick={() => router.push(`/?mode=${mode}`)}
+                onClick={() => {
+                  setMessages([]);
+                  setHistory([]);
+                  setGameOver(false);
+                  setCompletedOutcome(null);
+                  setFinalAnswer(null);
+                  setAwaitingGuessConfirmation(false);
+                  setInput("");
+                  setCopied(false);
+                  setShowedHintEnd(false);
+                  setRevealInput("");
+                  setShowReveal(false);
+                  setAnswerStats(null);
+                  setSessionId(null);
+                  setSuggestedUsedCount(0);
+                  setTurnCount(0);
+                  setInitFailed(false);
+                  turnCountRef.current = 0;
+                  recordedSessionRef.current = null;
+                  initialized.current = false;
+                  setBootstrapping(true);
+                  setShowIntro(true);
+                  setIntroFading(false);
+                  setTimeout(() => setIntroFading(true), 1800);
+                  setTimeout(() => setShowIntro(false), 2600);
+                }}
                 className="px-5 py-2.5 rounded-full bg-mystic text-black text-sm font-medium hover:bg-mystic-light transition-colors"
               >
                 다시 하기
