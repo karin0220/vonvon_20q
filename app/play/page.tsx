@@ -177,6 +177,16 @@ function GameContent() {
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
   }, []);
 
+  // bootstrapping 안전장치 — 30초 후 강제 해제
+  useEffect(() => {
+    if (!bootstrapping) return;
+    const safety = setTimeout(() => {
+      setBootstrapping(false);
+      setInitFailed(true);
+    }, 30000);
+    return () => clearTimeout(safety);
+  }, [bootstrapping]);
+
   useEffect(() => {
     const stored = getStoredPromptOverrides();
     setPromptOverrides(stored);
@@ -695,6 +705,11 @@ function GameContent() {
         <div className="text-center">
           <span className="text-xs text-text-dim">{category}</span>
           <span className="text-xs text-mystic ml-2">{turnCount}/20</span>
+          {bootstrapping && (
+            <span className="text-[9px] text-red-400 ml-1">
+              [{promptConfigReady ? "API" : "cfg"}{loading ? "…" : ""}{initFailed ? "✗" : ""}]
+            </span>
+          )}
         </div>
         <button
           type="button"
