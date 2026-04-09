@@ -23,21 +23,27 @@ function HomeContent() {
   const [mode, setMode] = useState<GameMode>(initialMode);
   const [starting, setStarting] = useState(false);
   const [recentPlays, setRecentPlays] = useState<RecentPlayItem[]>([]);
+  const [feedLoaded, setFeedLoaded] = useState(false);
   const dailyCategory = useMemo(() => getDailyCategory(), []);
 
   useEffect(() => {
     let active = true;
+    let firstLoad = true;
 
     async function loadFeed() {
       try {
         const res = await fetch("/api/feed", { cache: "no-store" });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error();
         const data = (await res.json()) as { items?: RecentPlayItem[] };
         if (active && data.items?.length) {
           setRecentPlays(data.items);
         }
       } catch {
-        // Keep local fallback feed.
+        // DB 실패 시 더미 유지
+      }
+      if (active && firstLoad) {
+        firstLoad = false;
+        setFeedLoaded(true);
       }
     }
 
@@ -66,7 +72,7 @@ function HomeContent() {
   return (
     <main className="flex-1 flex flex-col">
       {/* 전광판 — 최근 플레이 정답 */}
-      <div className="relative overflow-hidden bg-bg-card/80 border-b border-border py-1.5">
+      <div className={`relative overflow-hidden bg-bg-card/80 border-b border-border py-1.5 transition-opacity duration-700 ${feedLoaded ? "opacity-100" : "opacity-0"}`}>
         <div className="marquee-track">
           {[0, 1].map((set) => (
             <span key={set} className="marquee-content">
