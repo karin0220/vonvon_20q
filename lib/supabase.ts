@@ -160,6 +160,36 @@ async function getKnowledgeRow(
   return rows.length ? rows[0] : null;
 }
 
+export async function getCategoryAvgTurns(
+  category: string,
+  mode: "user-guesses" | "ai-guesses"
+): Promise<number | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  const outcome = mode === "user-guesses" ? "solved" : "ai_correct";
+  // 카테고리 내 전체 answer_knowledge 행을 합산
+  const catFilter = category === "전체" ? "" : `&category=eq.${encodeURIComponent(category)}`;
+  const rows = await supabaseRest<KnowledgeRow[]>(
+    `answer_knowledge?select=user_guess_wins,user_guess_total_turns,ai_guess_successes,ai_guess_total_turns${catFilter}`
+  );
+
+  if (!rows.length) return null;
+
+  let totalWins = 0;
+  let totalTurns = 0;
+  for (const row of rows) {
+    if (mode === "user-guesses") {
+      totalWins += row.user_guess_wins;
+      totalTurns += row.user_guess_total_turns;
+    } else {
+      totalWins += row.ai_guess_successes;
+      totalTurns += row.ai_guess_total_turns;
+    }
+  }
+
+  return totalWins > 0 ? Number((totalTurns / totalWins).toFixed(1)) : null;
+}
+
 export async function getKnowledgeContext(
   category: string,
   limit = 12

@@ -138,6 +138,7 @@ function GameContent() {
   const [revealInput, setRevealInput] = useState("");
   const [showReveal, setShowReveal] = useState(false);
   const [answerStats, setAnswerStats] = useState<KnowledgeStats | null>(null);
+  const [categoryAvgTurns, setCategoryAvgTurns] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [completedOutcome, setCompletedOutcome] = useState<SessionOutcome | null>(null);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
@@ -291,9 +292,10 @@ function GameContent() {
         });
 
         if (!res.ok) throw new Error("session log failed");
-        const data = (await res.json()) as { stats?: KnowledgeStats | null; sessionId?: string | null };
+        const data = (await res.json()) as { stats?: KnowledgeStats | null; sessionId?: string | null; categoryAvgTurns?: number | null };
         if (active) {
           setAnswerStats(data.stats ?? null);
+          setCategoryAvgTurns(data.categoryAvgTurns ?? null);
           if (data.sessionId) setSessionId(data.sessionId);
         }
       } catch {
@@ -666,9 +668,11 @@ function GameContent() {
 
   const knownAnswerForStats =
     mode === "user-guesses" ? fixedAnswer || finalAnswer : finalAnswer;
-  const avgTurns = mode === "user-guesses"
+  const answerAvgTurns = mode === "user-guesses"
     ? (answerStats?.userGuessAvgTurns ?? null)
     : (answerStats?.aiGuessAvgTurns ?? null);
+  const avgTurns = answerAvgTurns ?? categoryAvgTurns;
+  const isAnswerSpecific = answerAvgTurns !== null;
   const hasChatActivity = messages.length > 0 || loading;
   const activePromptTemplate = promptDrafts[promptEditorMode];
   const activePromptPreview = getSystemPrompt(
@@ -1119,27 +1123,23 @@ function GameContent() {
           </div>
         ) : (
           <div className="px-4 py-5 border-t border-border text-center space-y-4">
-            {knownAnswerForStats && answerStats && (
+            {avgTurns !== null && (
               <div className="bg-bg-card border border-border rounded-2xl px-4 py-3 space-y-1">
-                <p className="text-xs text-text-dim">
-                  <span className="text-text-bright">{knownAnswerForStats}</span> 누적 플레이{" "}
-                  <span className="text-mystic font-bold">{answerStats.totalSessions}회</span>
-                </p>
-                {avgTurns ? (
-                  <>
-                    <p className="text-xs text-text-dim">
-                      {mode === "user-guesses" ? "유저 평균 정답 턴수" : "봉신 평균 정답 턴수"}{" "}
-                      <span className="text-mystic font-bold">{avgTurns}턴</span>
-                    </p>
-                    <p className="text-sm text-mystic-light font-medium">
-                      {getTeasingMessage(turnCount, avgTurns)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-mystic-light font-medium">
-                    아직 이 정답을 맞춘 유저 통계는 쌓이지 않았다.
+                {knownAnswerForStats && answerStats && answerStats.totalSessions > 1 && (
+                  <p className="text-xs text-text-dim">
+                    <span className="text-text-bright">{knownAnswerForStats}</span> 누적 플레이{" "}
+                    <span className="text-mystic font-bold">{answerStats.totalSessions}회</span>
                   </p>
                 )}
+                <p className="text-xs text-text-dim">
+                  {isAnswerSpecific
+                    ? (mode === "user-guesses" ? "이 정답 유저 평균" : "이 정답 봉신 평균")
+                    : `${category} 카테고리 평균`}{" "}
+                  <span className="text-mystic font-bold">{avgTurns}턴</span>
+                </p>
+                <p className="text-sm text-mystic-light font-medium">
+                  {getTeasingMessage(turnCount, avgTurns)}
+                </p>
               </div>
             )}
 
@@ -1162,6 +1162,7 @@ function GameContent() {
                   setRevealInput("");
                   setShowReveal(false);
                   setAnswerStats(null);
+                  setCategoryAvgTurns(null);
                   setSessionId(null);
                   setSuggestedUsedCount(0);
                   setTurnCount(0);

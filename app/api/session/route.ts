@@ -1,5 +1,5 @@
 import { GameMode } from "@/lib/types";
-import { recordSessionAndGetStats } from "@/lib/supabase";
+import { recordSessionAndGetStats, getCategoryAvgTurns } from "@/lib/supabase";
 
 type SessionOutcome = "solved" | "failed" | "ai_correct" | "revealed";
 
@@ -31,6 +31,9 @@ export async function POST(request: Request) {
     return Response.json({ stats: null, sessionId: null }, { status: 400 });
   }
 
-  const result = await recordSessionAndGetStats(body);
-  return Response.json(result);
+  const [result, categoryAvgTurns] = await Promise.all([
+    recordSessionAndGetStats(body),
+    getCategoryAvgTurns(body.category, body.mode),
+  ]);
+  return Response.json({ ...result, categoryAvgTurns });
 }
