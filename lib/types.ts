@@ -56,6 +56,7 @@ export interface KnowledgeStats {
   userGuessAvgTurns: number | null;
   aiGuessPlays: number;
   aiGuessSuccesses: number;
+  aiGuessAvgTurns: number | null;
   lastPlayedAt: string | null;
 }
 
@@ -63,6 +64,7 @@ export interface RecentPlayItem {
   answer: string;
   category: string;
   mode: GameMode;
+  turnCount: number;
   createdAt: string;
 }
 

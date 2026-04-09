@@ -42,8 +42,7 @@ const SUGGESTED_SETS: Record<string, string[][]> = {
 
 function getSuggestedSet(category: string, index: number): string[] {
   const sets = SUGGESTED_SETS[category] || SUGGESTED_SETS["유명인"];
-  if (index >= sets.length) return [];
-  return sets[index];
+  return sets[index % sets.length];
 }
 
 function getTeasingMessage(userTurns: number, avgTurns: number): string {
@@ -138,6 +137,7 @@ function GameContent() {
   const [revealInput, setRevealInput] = useState("");
   const [showReveal, setShowReveal] = useState(false);
   const [answerStats, setAnswerStats] = useState<KnowledgeStats | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [completedOutcome, setCompletedOutcome] = useState<SessionOutcome | null>(null);
   const [suggestedUsedCount, setSuggestedUsedCount] = useState(0);
   const [showPromptGate, setShowPromptGate] = useState(false);
@@ -271,13 +271,19 @@ function GameContent() {
             answer: answerForStats,
             outcome: completedOutcome,
             turnCount: turnCountRef.current,
+            conversation: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+              type: m.responseType ?? (m.role === "user" ? "answer" : "message"),
+            })),
           }),
         });
 
         if (!res.ok) throw new Error("session log failed");
-        const data = (await res.json()) as { stats?: KnowledgeStats | null };
+        const data = (await res.json()) as { stats?: KnowledgeStats | null; sessionId?: string | null };
         if (active) {
           setAnswerStats(data.stats ?? null);
+          if (data.sessionId) setSessionId(data.sessionId);
         }
       } catch {
         try {

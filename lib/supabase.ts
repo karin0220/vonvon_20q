@@ -1,6 +1,13 @@
+import { nanoid } from "nanoid";
 import { GameMode, KnowledgeStats, RecentPlayItem } from "./types";
 
 type SessionOutcome = "solved" | "failed" | "ai_correct" | "revealed";
+
+interface ConversationMessage {
+  role: "bongshin" | "user";
+  content: string;
+  type?: string;
+}
 
 interface SessionRecordInput {
   mode: GameMode;
@@ -8,6 +15,7 @@ interface SessionRecordInput {
   answer: string;
   outcome: SessionOutcome;
   turnCount: number;
+  conversation?: ConversationMessage[];
 }
 
 interface KnowledgeRow {
@@ -20,6 +28,7 @@ interface KnowledgeRow {
   user_guess_total_turns: number;
   ai_guess_plays: number;
   ai_guess_successes: number;
+  ai_guess_total_turns: number;
   last_played_at: string | null;
   updated_at?: string;
 }
@@ -28,6 +37,7 @@ interface SessionRow {
   answer: string;
   category: string;
   mode: GameMode;
+  turn_count: number;
   created_at: string;
 }
 
@@ -102,6 +112,10 @@ function mapKnowledgeRow(row: KnowledgeRow): KnowledgeStats {
         : null,
     aiGuessPlays: row.ai_guess_plays,
     aiGuessSuccesses: row.ai_guess_successes,
+    aiGuessAvgTurns:
+      row.ai_guess_successes > 0
+        ? Number((row.ai_guess_total_turns / row.ai_guess_successes).toFixed(1))
+        : null,
     lastPlayedAt: row.last_played_at,
   };
 }
@@ -110,13 +124,14 @@ export async function listRecentPlayItems(limit = 24): Promise<RecentPlayItem[]>
   if (!isSupabaseConfigured()) return [];
 
   const rows = await supabaseRest<SessionRow[]>(
-    `game_sessions?select=answer,category,mode,created_at&order=created_at.desc&limit=${limit}`
+    `game_sessions?select=answer,category,mode,turn_count,created_at&outcome=in.(solved,ai_correct)&order=created_at.desc&limit=${limit}`
   );
 
   return rows.map((row) => ({
     answer: row.answer,
     category: row.category,
     mode: row.mode,
+    turnCount: row.turn_count,
     createdAt: row.created_at,
   }));
 }
@@ -189,22 +204,26 @@ export async function getKnowledgeContext(
 
 export async function recordSessionAndGetStats(
   input: SessionRecordInput
-): Promise<KnowledgeStats | null> {
-  if (!isSupabaseConfigured()) return null;
+): Promise<{ stats: KnowledgeStats | null; sessionId: string | null }> {
+  if (!isSupabaseConfigured()) return { stats: null, sessionId: null };
 
   const answer = input.answer.trim();
   const normalized = normalizeAnswer(answer);
   const now = new Date().toISOString();
 
+  const sessionId = nanoid(8);
+
   await supabaseRest("game_sessions", {
     method: "POST",
     body: JSON.stringify({
+      session_id: sessionId,
       mode: input.mode,
       category: input.category,
       answer,
       normalized_answer: normalized,
       outcome: input.outcome,
       turn_count: input.turnCount,
+      conversation: input.conversation ?? null,
     }),
     headers: {
       Prefer: "return=minimal",
@@ -229,6 +248,9 @@ export async function recordSessionAndGetStats(
       (currentRow?.ai_guess_plays ?? 0) + (input.mode === "ai-guesses" ? 1 : 0),
     ai_guess_successes:
       (currentRow?.ai_guess_successes ?? 0) + (input.outcome === "ai_correct" ? 1 : 0),
+    ai_guess_total_turns:
+      (currentRow?.ai_guess_total_turns ?? 0) +
+      (input.outcome === "ai_correct" ? input.turnCount : 0),
     last_played_at: now,
     updated_at: now,
   };
@@ -244,5 +266,6 @@ export async function recordSessionAndGetStats(
     }
   );
 
-  return rows.length ? mapKnowledgeRow(rows[0]) : null;
+  const stats = rows.length ? mapKnowledgeRow(rows[0]) : null;
+  return { stats, sessionId };
 }

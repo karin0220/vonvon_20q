@@ -50,7 +50,7 @@ function HomeContent() {
   }, []);
 
   const marqueeItems = recentPlays.length
-    ? recentPlays.map((item) => `${item.category} · ${item.answer}`)
+    ? recentPlays.map((item) => `${item.category} · ${item.answer} (${item.turnCount}턴)`)
     : RECENT_ANSWERS;
 
   function startGame(category: string) {
