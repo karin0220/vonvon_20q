@@ -413,11 +413,20 @@ export async function setPromptOverrides(overrides: PromptOverrides): Promise<bo
   }
 }
 
-// --- 질문 트리 오버라이드 (Supabase 저장) ---
-// 형식: { "카테고리": { "turn:path": { q, axis, yes, no } } }
+// --- 질문 트리 (question_tree 전용 테이블) ---
+// 테이블 구조: category | turn | path | question | axis | yes_label | no_label
 export type QuestionTreeOverrides = Record<string, Record<string, { q: string; axis: string; yes: string; no: string }>>;
 
-const QUESTION_TREE_KEY = "question_tree";
+interface QuestionTreeRow {
+  category: string;
+  turn: number;
+  path: string;
+  question: string;
+  axis: string;
+  yes_label: string;
+  no_label: string;
+}
+
 const questionTreeCache: { value: QuestionTreeOverrides | null; expiresAt: number } = {
   value: null,
   expiresAt: 0,
@@ -432,10 +441,23 @@ export async function getQuestionTree(): Promise<QuestionTreeOverrides> {
   }
 
   try {
-    const rows = await supabaseRest<{ key: string; value: QuestionTreeOverrides }[]>(
-      `admin_config?key=eq.${QUESTION_TREE_KEY}&select=key,value`
+    const rows = await supabaseRest<QuestionTreeRow[]>(
+      `question_tree?select=category,turn,path,question,axis,yes_label,no_label`
     );
-    const result = rows.length ? rows[0].value ?? {} : {};
+
+    // 행 → 중첩 구조로 변환
+    const result: QuestionTreeOverrides = {};
+    for (const row of rows) {
+      if (!result[row.category]) result[row.category] = {};
+      const key = `${row.turn}:${row.path}`;
+      result[row.category][key] = {
+        q: row.question,
+        axis: row.axis,
+        yes: row.yes_label,
+        no: row.no_label,
+      };
+    }
+
     questionTreeCache.value = result;
     questionTreeCache.expiresAt = now + ADMIN_CONFIG_CACHE_TTL_MS;
     return result;
